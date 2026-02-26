@@ -82,6 +82,8 @@
     <div id="comp-grid">
         <div class="placeholder">请在上方列表勾选 2 所学校开启深度对比</div>
     </div>
+    <div style="text-align: center; padding: 20px 0; color: #bdc3c7; font-size: 10px;">
+    © 2026 英国名校交互地图项目 | 研究生留学咨询微信：wmcx123456
 </div>
 
 <script>
@@ -361,7 +363,7 @@
 ];
     
 
-    let selectedUnis = [];
+   let selectedUnis = [];
     const map = L.map('map').setView([54.5, -2.5], 6);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
     let markerLayer = L.markerClusterGroup().addTo(map);
@@ -376,10 +378,10 @@
             <div class="u-popup">
                 <div class="u-title">${u.name} <span class="tag-qs">QS #${u.qsRank}</span></div>
                 <div class="u-row"><span class="label">🏢 校区：</span>${u.dist}</div>
-                <div class="u-row"><span class="label">🎯 优势：</span>${u.strength}</div>
+                <div class="u-row"><span class="label">🎯 强势：</span>${u.strength}</div>
                 <hr>
                 <div class="u-row" style="color:#d35400;"><span class="label">💰 租金：</span>${u.rent}</div>
-                <div class="u-row"><span class="label">🌳 环境：</span>${u.env}</div>
+                <div class="u-row"><span class="label">🎓 就业：</span>${u.employ}</div>
             </div>
         `;
     }
@@ -403,7 +405,7 @@
             el.classList.remove('selected');
         } else {
             if(selectedUnis.length >= 2) {
-                alert("对比功能仅支持两所学校，请取消一个后再选择。");
+                alert("对比功能仅支持两所学校。");
                 return;
             }
             selectedUnis.push(u.name);
@@ -429,16 +431,18 @@
 
         if(selectedUnis.length > 0) {
             const bounds = markerLayer.getBounds();
-            if (bounds.isValid()) map.flyToBounds(bounds, {padding:[100,100], maxZoom: 10});
+            // 手机端适当调小缩放级别，获得更好视野
+            if (bounds.isValid()) map.flyToBounds(bounds, {padding:[50,50], maxZoom: 10});
         } else {
-            map.setView([54.5, -2.5], 6);
+            // 回到全英视野
+            map.setView([54.5, -2.5], window.innerWidth < 768 ? 5 : 6);
         }
     }
 
     function renderComparison() {
         const grid = document.getElementById('comp-grid');
         if (selectedUnis.length < 2) {
-            grid.innerHTML = `<div class="placeholder">已勾选 ${selectedUnis.length} 所，还需选择 ${2-selectedUnis.length} 所即可开启六大维度对比</div>`;
+            grid.innerHTML = `<div class="placeholder">已勾选 ${selectedUnis.length} 所，还需选择 ${2-selectedUnis.length} 所开启对比</div>`;
             return;
         }
 
@@ -454,8 +458,8 @@
                 <tr><th class="dim-label">对比维度</th><th class="uni-name-header">${a.name}</th><th class="uni-name-header">${b.name}</th></tr>
                 <tr><td class="dim-label">📊 QS 排名</td><td><span class="val-highlight">#${a.qsRank}</span></td><td><span class="val-highlight">#${b.qsRank}</span></td></tr>
                 <tr><td class="dim-label">📍 地理/交通</td><td><b>${a.city}</b><br><small>${a.traffic}</small></td><td><b>${b.city}</b><br><small>${b.traffic}</small></td></tr>
-                <tr><td class="dim-label">🎯 优势专业</td><td>${a.strength}</td><td>${b.strength}</td></tr>
-                <tr><td class="dim-label">🎓 就业/国际化</td><td>就业率：${a.employ}<br>占比：${a.intl}</td><td>就业率：${b.employ}<br>占比：${b.intl}</td></tr>
+                <tr><td class="dim-label">🎯 强势专业</td><td>${a.strength}</td><td>${b.strength}</td></tr>
+                <tr><td class="dim-label">🎓 就业竞争力</td><td>${a.employ} (国际生占比:${a.intl})</td><td>${b.employ} (国际生占比:${b.intl})</td></tr>
                 <tr>
                     <td class="dim-label">💰 租金压力</td>
                     <td>
@@ -471,7 +475,7 @@
                 </tr>
                 <tr><td class="dim-label">🌳 校园/经济</td><td><b>环境：</b>${a.env}<br><b>特色：</b>${a.economy}</td><td><b>环境：</b>${b.env}<br><b>特色：</b>${b.economy}</td></tr>
             </table>
-            <div class="data-source">* 数据统计来源于 2026 年 QS 世界大学排名及各校 2025/26 招生简报。租金压力以 £600/周为上限参照。</div>
+            <div class="data-source">* 数据来源：2026 QS World University Rankings & 2025/26 招生简报</div>
         `;
         grid.innerHTML = tableHtml;
     }

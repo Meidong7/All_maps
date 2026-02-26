@@ -2,7 +2,8 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>澳洲八大名校 (Go8) 交互对比系统 - 专家咨询版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>澳洲八大名校 (Go8) 交互对比系统 - 咨询版</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
@@ -11,71 +12,102 @@
 
     <style>
         :root { --primary: #003049; --accent: #f77f00; --gold: #fcbf49; --gray: #f8f9fa; --wechat: #07c160; }
-        body { background-color: #f0f2f5; margin: 0; font-family: 'Segoe UI', Arial, sans-serif; padding-bottom: 80px; }
+        body { background-color: #f0f2f5; margin: 0; font-family: 'Segoe UI', Arial, sans-serif; padding-bottom: 100px; }
         
+        /* 响应式主容器 */
         .main-container {
-            max-width: 1400px; margin: 20px auto; background: #fff;
-            padding: 20px; border-radius: 15px; display: flex; gap: 20px; height: 60vh;
+            max-width: 1400px; margin: 15px auto; background: #fff;
+            padding: 15px; border-radius: 15px; display: flex; gap: 15px; height: 65vh;
         }
 
         #sidebar { width: 320px; display: flex; flex-direction: column; background: var(--gray); border-radius: 10px; padding: 10px; }
         #university-list { flex: 1; overflow-y: auto; }
-        .uni-item { padding: 10px; margin-bottom: 5px; background: #fff; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; font-size: 13px; transition: 0.2s; }
+        .uni-item { padding: 12px; margin-bottom: 6px; background: #fff; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; font-size: 14px; transition: 0.2s; }
         .uni-item:hover { border-color: var(--accent); background: #fffbf5; }
         .uni-item.selected { border-left: 5px solid var(--accent); background: #fffcf0; font-weight: bold; }
 
-        #map { flex: 1; border-radius: 10px; z-index: 1; }
+        #map { flex: 1; border-radius: 10px; z-index: 1; min-height: 300px; }
 
         .comparison-section {
-            max-width: 1400px; margin: 20px auto; background: #fff;
-            padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            max-width: 1400px; margin: 15px auto; background: #fff;
+            padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            overflow-x: auto; /* 关键：允许表格横向滚动 */
         }
-        .comp-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .comp-table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 600px; /* 保证对比时内容不挤压 */ }
         .comp-table th, .comp-table td { border: 1px solid #eee; padding: 12px; text-align: left; font-size: 14px; }
-        .dim-label { background: #f8f9fa; width: 140px; font-weight: bold; color: #666; }
+        .dim-label { background: #f8f9fa; width: 120px; font-weight: bold; color: #666; }
         .uni-name-header { background: var(--primary) !important; color: white !important; text-align: center; font-size: 16px; }
         
         /* 租金进度条 */
         .rent-bar-container { background: #eee; border-radius: 10px; height: 10px; width: 100%; margin-top: 8px; overflow: hidden; }
         .rent-bar-fill { height: 100%; background: linear-gradient(90deg, #fcbf49, #f77f00, #d62828); transition: width 0.6s ease-in-out; }
 
-        /* ✨ 悬浮咨询条 */
+        /* ✨ 悬浮咨询条适配 */
         .sticky-consult-bar {
             position: fixed; bottom: 0; left: 0; right: 0;
             background: linear-gradient(135deg, #003049 0%, #005073 100%);
-            color: white; padding: 15px 0; z-index: 9999;
+            color: white; padding: 12px 10px; z-index: 9999;
             box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
-            display: flex; justify-content: center; align-items: center; gap: 30px;
+            display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap;
         }
-        .wechat-tag { color: var(--gold); font-weight: bold; border: 1px dashed var(--gold); padding: 2px 8px; border-radius: 4px; }
+        .wechat-tag { color: var(--gold); font-weight: bold; border: 1px dashed var(--gold); padding: 1px 6px; border-radius: 4px; }
 
-        /* 气泡样式优化 */
-        .u-popup { line-height: 1.6; font-size: 13px; min-width: 250px; }
+        /* 气泡样式 */
+        .u-popup { line-height: 1.6; font-size: 13px; min-width: 220px; }
         .u-title { font-weight: bold; font-size: 15px; color: var(--primary); border-bottom: 2px solid var(--accent); margin-bottom: 8px; }
-        .label { font-weight: bold; color: #555; }
         .tag-qs { background: #fcbf49; color: #333; padding: 1px 5px; border-radius: 3px; font-size: 11px; float: right; font-weight: bold; }
-        hr { border: 0; border-top: 1px solid #eee; margin: 8px 0; }
-        .placeholder { text-align: center; padding: 40px; color: #999; border: 2px dashed #eee; border-radius: 10px; }
-        .data-source { font-size: 12px; color: #999; text-align: center; margin-top: 20px; font-style: italic; }
+        
+        .placeholder { text-align: center; padding: 30px; color: #999; border: 2px dashed #eee; border-radius: 10px; font-size: 14px; }
+        .data-source { font-size: 11px; color: #999; text-align: center; margin-top: 15px; font-style: italic; }
+
+        /* ================= 📱 移动端专项适配 ================= */
+        @media (max-width: 768px) {
+            h1 { font-size: 20px !important; }
+            .main-container {
+                flex-direction: column; /* 列表和地图改为上下排列 */
+                height: auto;
+                margin: 10px;
+            }
+            #sidebar {
+                width: 100%;
+                height: 300px; /* 给列表一个固定高度 */
+                order: 2; /* 地图排在上面，列表排在下面，用户体验更好 */
+            }
+            #map {
+                width: 100%;
+                height: 350px;
+                order: 1;
+            }
+            .comparison-section {
+                margin: 10px;
+                padding: 10px;
+            }
+            .sticky-consult-bar {
+                gap: 5px;
+                font-size: 12px;
+            }
+            .sticky-consult-bar span { width: 100%; text-align: center; } /* 手机上文字居中换行 */
+        }
     </style>
 </head>
 <body>
 
-<div style="text-align: center; padding: 20px 0;">
-    <h1 style="color: var(--primary); margin: 0;">🇦🇺 澳洲八大名校 (Go8) 交互对比地图</h1>
-    <p style="color: #666;">深度解析 2026 QS 排名与 NPL 配额政策 | <strong>研究生混申指导</strong></p>
+<div style="text-align: center; padding: 15px 10px;">
+    <h1 style="color: var(--primary); margin: 0; font-size: 24px;">🇦🇺 澳洲八大 (Go8) 交互对比系统</h1>
+    <p style="color: #666; font-size: 14px; margin-top: 5px;">2026 QS 排名与 NPL 配额深度解析 | <strong>研究生混申指导</strong></p>
 </div>
 
 <div class="sticky-consult-bar">
     <span>🚀 研究生留学全球混申免费咨询</span>
     <span>添加微信：<span class="wechat-tag">wmcx123456</span></span>
+    <span>邮箱：<strong>NBShoushi@outlook.com</strong></span>
 </div>
 
 <div class="main-container">
     <div id="sidebar">
         <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-            <strong>Go8 院校列表</strong>
-            <button onclick="resetSelection()" style="cursor:pointer; padding: 2px 8px;">重置</button>
+            <strong style="font-size: 15px;">Go8 院校列表</strong>
+            <button onclick="resetSelection()" style="cursor:pointer; padding: 4px 10px; font-size: 12px; background: #fff; border: 1px solid #ccc; border-radius: 4px;">重置</button>
         </div>
         <div id="university-list"></div>
     </div>
@@ -84,8 +116,10 @@
 
 <div class="comparison-section">
     <div id="comp-grid">
-        <div class="placeholder">请在上方列表勾选 2 所学校开启深度对比</div>
+        <div class="placeholder">请在列表勾选 2 所学校开启深度对比</div>
     </div>
+     <div style="text-align: center; padding: 20px 0; color: #bdc3c7; font-size: 10px;">
+    © 2026 澳洲八大交互地图项目 | 研究生留学咨询微信：wmcx123456
 </div>
 
 <script>
@@ -150,7 +184,6 @@
             <div class="u-popup">
                 <div class="u-title">${u.name} <span class="tag-qs">QS #${u.qsRank}</span></div>
                 <div class="u-row"><span class="label">🏢 校区：</span>${u.dist}</div>
-                <div class="u-row"><span class="label">🎯 优势：</span>${u.strength}</div>
                 <hr>
                 <div class="u-row" style="color:#d62828;"><span class="label">📅 配额：</span>${u.quota}</div>
                 <div class="u-row" style="color:#d35400;"><span class="label">💰 租金：</span>${u.rent}</div>
@@ -186,13 +219,12 @@
         const displayData = selectedUnis.length > 0 ? universityData.filter(u => selectedUnis.includes(u.name)) : universityData;
         displayData.forEach(u => {
             const m = L.circleMarker(u.coords, { radius: 10, fillColor: '#d62828', color: '#fff', weight: 2, fillOpacity: 0.9 });
-            // ✨ 关键修复点：使用 createPopupHtml 函数
             m.bindPopup(createPopupHtml(u));
             markerLayer.addLayer(m);
         });
         if(selectedUnis.length > 0) {
             const bounds = markerLayer.getBounds();
-            if (bounds.isValid()) map.flyToBounds(bounds, {padding:[100,100], maxZoom: 12});
+            if (bounds.isValid()) map.flyToBounds(bounds, {padding:[50,50], maxZoom: 10});
         } else {
             map.setView([-25.27, 133.77], 4);
         }
@@ -201,7 +233,7 @@
     function renderComparison() {
         const grid = document.getElementById('comp-grid');
         if (selectedUnis.length < 2) {
-            grid.innerHTML = `<div class="placeholder">已勾选 ${selectedUnis.length} 所，还需选择 ${2-selectedUnis.length} 所开启 2026 深度对比</div>`;
+            grid.innerHTML = `<div class="placeholder">已勾选 ${selectedUnis.length} 所，还需选择 ${2-selectedUnis.length} 所开启对比</div>`;
             return;
         }
         const a = universityData.find(u => u.name === selectedUnis[0]), b = universityData.find(u => u.name === selectedUnis[1]);
@@ -218,11 +250,10 @@
                 </tr>
                 <tr><td class="dim-label">🎯 强势专业</td><td>${a.strength}</td><td>${b.strength}</td></tr>
                 <tr><td class="dim-label">📍 校区分布</td><td>${a.dist}</td><td>${b.dist}</td></tr>
-                <tr><td class="dim-label">🏗️ 产业关联</td><td>${a.economy}</td><td>${b.economy}</td></tr>
             </table>
             <div class="data-source">
-                * 数据参考 2026 QS 排名及澳洲 NPL 配额政策。想要更详细的申请规划？<br>
-                <strong>🚀 研究生留学全球混申免费咨询（添加微信：wmcx123456） </strong>
+                * 数据参考 2026 QS 排名及澳洲 NPL 配额政策。<br>
+                * 租金压力指数基于各校区平均租金与布里斯班基准（A$350/周）的比值计算，数值越高表示租金压力越大。
             </div>
         `;
     }
