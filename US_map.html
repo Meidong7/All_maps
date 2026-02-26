@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>美国 Top 60 名校交互地图 - 精品版</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+    <script src="us-states.js"></script>
+
+    <style>
+        :root { --primary-color: #2c3e50; --accent-color: #3498db; }
+        body { background-color: #f0f2f5; margin: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
+        
+        .state-label-text {
+            text-align: center !important;
+            color: #2c3e50 !important;
+            font-weight: 800 !important;
+            font-size: 13px !important;
+            text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+            white-space: nowrap !important;
+            pointer-events: none !important;
+            background: none !important;
+            border: none !important;
+            display: block !important;
+        }
+
+        .main-container {
+            max-width: 1100px;
+            margin: 30px auto;
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.08);
+        }
+
+        .header { text-align: center; margin-bottom: 20px; color: var(--primary-color); }
+        .header h2 { font-weight: 800; letter-spacing: 1px; }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        select {
+            padding: 10px 15px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            outline: none;
+        }
+
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 10px;
+            z-index: 1;
+        }
+
+        .u-popup { line-height: 1.5; font-size: 13px; min-width: 200px; }
+        .u-title { font-weight: bold; font-size: 15px; color: var(--accent-color); margin-bottom: 5px; }
+        .tag { display: inline-block; padding: 2px 5px; border-radius: 3px; font-size: 11px; color: white; margin-right: 5px; }
+        .tag-us { background: #e74c3c; }
+        .tag-qs { background: #f1c40f; color: #333; }
+
+/* 弹窗内部行间距 */
+.u-info-row {
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+/* 谷歌实景链接样式 */
+.street-view-btn {
+    display: inline-block;
+    background-color: #4285F4; /* Google Blue */
+    color: white !important;
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.street-view-btn:hover {
+    background-color: #3367d6;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* 弹窗分割线 */
+hr {
+    margin: 8px 0;
+    opacity: 0.5;
+}
+
+#sidebar {
+    flex: 1;
+    height: 680px;
+    background: #fdfdfd;
+    border-radius: 10px;
+    border: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-header {
+    padding: 15px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #eee;
+    border-radius: 10px 10px 0 0;
+}
+
+#university-list {
+   flex: 1;           /* 自动填充剩余高度 */
+    overflow-y: auto;  /* 出现纵向滚动条 */
+    padding: 10px;
+}
+
+.rank-group-title {
+    background: #eee;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #666;
+    margin: 10px 0 5px 0;
+    border-radius: 4px;
+}
+
+.uni-item {
+    padding: 8px 10px;
+    margin: 2px 0;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.uni-item:hover { background: #eef7ff; }
+
+.uni-item.selected {
+    background: #e3f2fd;
+    border-color: #3498db;
+    color: #2980b9;
+    font-weight: bold;
+}
+
+.uni-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#reset-btn {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#reset-btn:hover {
+    background: #f1b0b7;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#reset-btn:active {
+    transform: translateY(1px);
+}
+
+/* 当学校项被禁用时的样式 */
+.uni-item.disabled {
+    opacity: 0.35;           /* 变灰 */
+    cursor: not-allowed;      /* 鼠标变成禁止图标 */
+    pointer-events: none;     /* 彻底禁止点击事件 */
+    filter: grayscale(100%);  /* 彻底去色（可选，效果更明显） */
+}
+
+.footer-consult {
+    text-align: center;
+    padding: 20px 0;
+    margin-top: 30px;
+    background-color: #ffffff;
+    border-top: 1px solid #eaeaea;
+    color: #2c3e50;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 -5px 15px rgba(0,0,0,0.03);
+}
+
+.footer-consult strong {
+    color: #06188b; /* 微信文字用红色强调 */
+    background: #fff5f5;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px dashed #fab1a0;
+    margin-left: 5px;
+}
+
+.data-source-note {
+    text-align: center;
+    font-size: 12px;
+    color: #95a5a6;
+    margin-top: 40px; /* 与上方地图保持距离 */
+    margin-bottom: -20px; /* 紧贴下方的咨询条 */
+    font-style: italic;
+    letter-spacing: 0.3px;
+}
+
+/* 稍微优化一下之前的咨询条，让两者衔接更自然 */
+.footer-consult {
+    text-align: center;
+    padding: 25px 0;
+    margin-top: 30px;
+    background-color: #ffffff;
+    border-top: 1px solid #f1f1f1;
+    color: #2c3e50;
+    font-size: 16px;
+}
+.compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    font-size: 14px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
+
+.compare-table th {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 15px;
+    text-align: center;
+}
+
+.compare-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    text-align: center;
+    background: white;
+}
+
+.compare-table tr:nth-child(even) td {
+    background-color: #fcfcfc;
+}
+
+.compare-table th:first-child, .compare-table td:first-child {
+    text-align: left;
+    font-weight: bold;
+    background: #f8f9fa;
+    width: 120px;
+}
+
+.compare-tag {
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+    </style>
+</head>
+<body>
+
+
+<div class="main-container" style="display: flex; gap: 20px; max-width: 1400px;">
+    <div style="flex: 3;">
+        <div class="header">
+            <h2>🎓 美国名校地理位置动态看板</h2>
+        </div>
+        <div class="controls">
+            <select id="stateSelect" onchange="applyFilters()"><option value="all">所有地区 (全美)</option></select>
+            <select id="rankSelect" onchange="applyFilters()">
+                <option value="60">排名范围: Top 60</option>
+                <option value="30">排名范围: Top 30</option>
+                <option value="10">排名范围: Top 10</option>
+            </select>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong>学校名录 (Top 60)</strong>
+                <button id="reset-btn" onclick="resetSelection()">一键重置</button>
+            </div>
+            <div id="selection-count" style="font-size: 12px; color: #666; margin-top: 5px;">已选: 0/3</div>
+        </div>
+        <div id="university-list"></div>
+    </div>
+</div>
+
+<div class="data-source-note">
+    * 排名数据更新至 2025 年发布的最新版 2026 U.S. News / 2026 QS 世界大学榜单
+</div>
+
+<div class="footer-consult">
+    🚀 研究生留学全球混申免费咨询，添加微信：<strong>wmcx123456</strong>
+</div>
+
+<div id="comparison-section" class="main-container" style="display: none; margin-top: 20px;">
+    <div class="header">
+        <h3>📊 核心指标横向对比</h3>
+        <p>对比已选中的学校数据</p>
+    </div>
+    <div id="comparison-table-container">
+        <table class="compare-table">
+            <thead>
+                <tr id="compare-header">
+                    <th>核心指标</th>
+                </tr>
+            </thead>
+            <tbody id="compare-body">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<div style="text-align: center; padding: 20px 0; color: #bdc3c7; font-size: 10px;">
+    © 2026 美国名校交互地图项目 | 研究生留学咨询微信：wmcx123456
+</div>
+
+<script>
+  // --- 1. 数据定义区 (必须放在最前面) ---
+    const universityData = [
+        // --- Top 1-10 ---
+    { name: "普林斯顿大学 (Princeton)", state: "NJ", coords: [40.3431, -74.6551], usRank: 1, qsRank: 22, economy: "顶尖学术与生物制药圈", companies: "J&J, Bristol Myers Squibb", safety: "A+ (极安全)", distance: "1h 纽约/费城", google: "https://www.google.com/maps/search/Princeton+University" },
+    { name: "麻省理工学院 (MIT)", state: "MA", coords: [42.3601, -71.0942], usRank: 2, qsRank: 1, economy: "全球硬科技与创投心脏", companies: "Google, Amazon, Moderna", safety: "B+ (市区注意)", distance: "波士顿市内", google: "https://www.google.com/maps/search/MIT" },
+    { name: "哈佛大学 (Harvard)", state: "MA", coords: [42.3770, -71.1167], usRank: 3, qsRank: 4, economy: "法律、金融与全球领袖摇篮", companies: "Fidelity, Biogen", safety: "A- (安保极强)", distance: "波士顿市内", google: "https://www.google.com/maps/search/Harvard+University" },
+    { name: "斯坦福大学 (Stanford)", state: "CA", coords: [37.4275, -122.1697], usRank: 4, qsRank: 3, economy: "硅谷核心，创业与技术高地", companies: "Meta, Google, Tesla", safety: "A (治安良好)", distance: "45m 旧金山", google: "https://www.google.com/maps/search/Stanford+University" },
+    { name: "耶鲁大学 (Yale)", state: "CT", coords: [41.3163, -72.9223], usRank: 5, qsRank: 23, economy: "顶尖教育与医疗枢纽", companies: "Yale New Haven Health", safety: "B- (校外谨慎)", distance: "1.5h 纽约", google: "https://www.google.com/maps/search/Yale+University" },
+    { name: "加州理工学院 (Caltech)", state: "CA", coords: [34.1377, -118.1253], usRank: 6, qsRank: 10, economy: "航空航天与基础物理中心", companies: "NASA, SpaceX", safety: "A (高档住宅区)", distance: "20m 洛杉矶", google: "https://www.google.com/maps/search/Caltech" },
+    { name: "杜克大学 (Duke)", state: "NC", coords: [36.0014, -78.9382], usRank: 7, qsRank: 61, economy: "三角研究园(RTP)生物中心", companies: "IBM, Cisco, GSK", safety: "A- (风景优美)", distance: "25m 罗利", google: "https://www.google.com/maps/search/Duke+University" },
+    { name: "约翰霍普金斯 (JHU)", state: "MD", coords: [39.3299, -76.6205], usRank: 8, qsRank: 32, economy: "全球医学、公卫与国防工业", companies: "NASA/APL, Under Armour", safety: "C (治安风险高，周边巴尔的摩治安复杂，学校提供 24/7 蓝色报警柱及校警伴行服务。两个校区治安均需高度警惕，务必使用校内护送服务。)", distance: "1h 华盛顿DC", google: "https://www.google.com/maps/search/Johns+Hopkins+University" },
+    { name: "宾夕法尼亚大学 (UPenn)", state: "PA", coords: [39.9522, -75.1932], usRank: 9, qsRank: 11, economy: "沃顿商学院，全球金融支柱", companies: "Vanguard, BlackRock", safety: "B (大学城内安全)", distance: "费城市内", google: "https://www.google.com/maps/search/UPenn" },
+    { name: "西北大学 (Northwestern)", state: "IL", coords: [42.0565, -87.6753], usRank: 10, qsRank: 50, note: "主校区在埃文斯顿(极安全)；医学院/法学院在芝加哥市区",economy: "传媒、市场营销与管理咨询", companies: "Abbott, Kraft Heinz", safety: "A (富裕湖边区)", distance: "30m 芝加哥，埃文斯顿与芝加哥市区有校车接驳", google: "https://www.google.com/maps/search/Northwestern+University" },
+
+    // --- Top 11-20 ---
+    { name: "布朗大学 (Brown)", state: "RI", coords: [41.8268, -71.4025], usRank: 11, qsRank: 79, economy: "常春藤人文、设计与科研", companies: "Hasbro, Citizens Bank", safety: "B+ (市区氛围)", distance: "1h 波士顿", google: "https://www.google.com/maps/search/Brown+University" },
+    { name: "康奈尔大学 (Cornell)", state: "NY", coords: [42.4485, -76.4735], usRank: 12, qsRank: 16, note: "主校区在伊萨卡；Tech学院位于纽约市罗斯福岛",economy: "伊萨卡校区侧重农林工程；纽约校区侧重计算机与创投", companies: "Intel, Corning", safety: "A (世外桃源)", distance: "4h 纽约", google: "https://www.google.com/maps/search/Cornell+University" },
+    { name: "哥伦比亚大学 (Columbia)", state: "NY", coords: [40.8075, -73.9626], usRank: 13, qsRank: 34, economy: "曼哈顿金融、传媒、联合国", companies: "Goldman, JP Morgan", safety: "B- (大城市注意)", distance: "纽约市内", google: "https://www.google.com/maps/search/Columbia+University" },
+    { name: "芝加哥大学 (UChicago)", state: "IL", coords: [41.7886, -87.5987], usRank: 14, qsRank: 13, economy: "量化金融与经济学巅峰", companies: "Citadel, United", safety: "C+ (利用校园班车，周边复杂，海德公园区周边治安波动大，建议避开南侧街区。)", distance: "芝加哥市内", google: "https://www.google.com/maps/search/University+of+Chicago" },
+    { name: "加州大学伯克利 (UCB)", state: "CA", coords: [37.8719, -122.2585], usRank: 15, qsRank: 12, economy: "硅谷人才库，科技创业高地", companies: "Tesla, Salesforce", safety: "C+ (注意流浪汉)", distance: "20m 旧金山", google: "https://www.google.com/maps/search/UC+Berkeley" },
+    { name: "加州大学洛杉矶 (UCLA)", state: "CA", coords: [34.0689, -118.4452], usRank: 15, qsRank: 42, economy: "影视娱乐、国际商务、医疗", companies: "Disney, Netflix", safety: "B+ (Westwood区)", distance: "LA市内", google: "https://www.google.com/maps/search/UCLA" },
+    { name: "莱斯大学 (Rice)", state: "TX", coords: [29.7174, -95.4018], usRank: 17, qsRank: 141, economy: "能源中心、休斯顿医疗枢纽", companies: "ExxonMobil, Shell", safety: "A (博物馆区)", distance: "休斯顿市内", google: "https://www.google.com/maps/search/Rice+University" },
+    { name: "达特茅斯 (Dartmouth)", state: "NH", coords: [43.7044, -72.2887], usRank: 18, qsRank: 243, economy: "顶尖商科预备、本科教育", companies: "McKinsey, Bain", safety: "A+ (全美最安全)", distance: "2.5h 波士顿", google: "https://www.google.com/maps/search/Dartmouth+College" },
+    { name: "范德堡大学 (Vanderbilt)", state: "TN", coords: [36.1447, -86.8027], usRank: 18, qsRank: 261, economy: "医疗管理中心，音乐之城", companies: "HCA Healthcare", safety: "B+ (市区稳定)", distance: "纳什维尔", google: "https://www.google.com/maps/search/Vanderbilt+University" },
+    { name: "圣母大学 (Notre Dame)", state: "IN", coords: [41.7025, -86.2353], usRank: 20, qsRank: 249, economy: "强大天主教校友网，金融会计", companies: "Deloitte, Boeing", safety: "A+ (宁静校园)", distance: "1.5h 芝加哥", google: "https://www.google.com/maps/search/University+of+Notre+Dame" },
+
+    // --- Top 21-40 ---
+    { name: "密歇根安娜堡 (UMich)", state: "MI", coords: [42.2781, -83.7382], usRank: 21, qsRank: 44, economy: "汽车、智能制造与生命科学", companies: "Ford, GM, Toyota", safety: "A- (安全友好)", distance: "45m 底特律", google: "https://www.google.com/maps/search/University+of+Michigan" },
+    { name: "卡内基梅隆 (CMU)", state: "PA", coords: [40.4432, -79.9428], usRank: 21, qsRank: 52, economy: "AI、机器人、无人驾驶之都", companies: "Google, Uber", safety: "B (学术区)", distance: "匹兹堡市内", google: "https://www.google.com/maps/search/Carnegie+Mellon+University" },
+    { name: "埃默里大学 (Emory)", state: "GA", coords: [33.7925, -84.3240], usRank: 24, qsRank: 196, economy: "全球公卫与财富500强集群", companies: "Coca-Cola, Delta, CDC", safety: "B+ (富裕社区)", distance: "15m 亚特兰大", google: "https://www.google.com/maps/search/Emory+University" },
+    { name: "乔治城大学 (Georgetown)", state: "DC", coords: [38.9076, -77.0723], usRank: 24, qsRank: 301, note: "主校区在乔治城；法学院校区靠近国会山(DC市中心)",economy: "政治、法律、智库枢纽，主校区侧重外交政治；法学院校区极利于法律实习", companies: "World Bank, IMF", safety: "B+ (外交官区)", distance: "DC特区内", google: "https://www.google.com/maps/search/Georgetown+University" },
+    { name: "华盛顿圣路易斯 (WashU)", state: "MO", coords: [38.6483, -90.3050], usRank: 24, qsRank: 176, economy: "生物制药与顶尖医学研究", companies: "Bayer, Centene", safety: "B (安保严密)", distance: "圣路易斯", google: "https://www.google.com/maps/search/WashU" },
+    { name: "弗吉尼亚大学 (UVA)", state: "VA", coords: [38.0336, -78.5080], usRank: 24, qsRank: 260, economy: "公立常春藤，政商名流圈", companies: "Capital One, Hilton", safety: "A- (传统安全)", distance: "2h DC", google: "https://www.google.com/maps/search/UVA" },
+    { name: "北卡教堂山 (UNC)", state: "NC", coords: [35.9049, -79.0469], usRank: 27, qsRank: 155, economy: "生物技术、药学研究核心", companies: "Quintiles, RTP", safety: "A- (大学城)", distance: "25m 罗利", google: "https://www.google.com/maps/search/UNC+Chapel+Hill" },
+    { name: "南加州大学 (USC)", state: "CA", coords: [34.0224, -118.2851], usRank: 28, qsRank: 125, economy: "影视、游戏、传媒、庞大校友网", companies: "Hulu, Disney", safety: "C (校外不安全，位于 LA 市中心，学校提供免费 Lyft 校园服务区及严密的围栏安检。)", distance: "LA市中心", google: "https://www.google.com/maps/search/USC" },
+    { name: "加州大学圣地亚哥 (UCSD)", state: "CA", coords: [32.8801, -117.2340], usRank: 28, qsRank: 72, economy: "生物制药与无线电通信高地", companies: "Qualcomm, Illumina", safety: "A (极度优美)", distance: "20m 圣地亚哥", google: "https://www.google.com/maps/search/UCSD" },
+    { name: "德州奥斯汀 (UT Austin)", state: "TX", coords: [30.2849, -97.7341], usRank: 30, qsRank: 66, economy: "硅山，科技巨头迁入核心", companies: "Tesla, Oracle", safety: "B+ (活跃繁华)", distance: "奥斯汀市内", google: "https://www.google.com/maps/search/UT+Austin" },
+    { name: "佛罗里达大学 (UF)", state: "FL", coords: [29.6436, -82.3549], usRank: 30, qsRank: 215, economy: "空间科学、现代农技研究", companies: "Info Tech, Infinite", safety: "A- (阳光大学城)", distance: "1.5h 奥兰多", google: "https://www.google.com/maps/search/University+of+Florida" },
+    { name: "纽约大学 (NYU)", state: "NY", coords: [40.7295, -73.9965], usRank: 32, qsRank: 43, note: "主校区在曼哈顿华盛顿广场；Tandon工程学院在布鲁克林",economy: "金融、时尚、文化、地标经济", companies: "Morgan Stanley, Vogue", safety: "B (曼哈顿校区较开放；布鲁克林校区需注意晚间安全)", distance: "纽约市中心", google: "https://www.google.com/maps/search/NYU" },
+    { name: "佐治亚理工 (GT)", state: "GA", coords: [33.7756, -84.3963], usRank: 33, qsRank: 114, economy: "南方科技枢纽、物流中心", companies: "Microsoft, NCR", safety: "B (市区)", distance: "亚特兰大", google: "https://www.google.com/maps/search/Georgia+Tech" },
+    { name: "加州大学戴维斯 (UCD)", state: "CA", coords: [38.5382, -121.7617], usRank: 33, qsRank: 128, economy: "农业科学、兽医、生命科学", companies: "Bayer, Marrone", safety: "A (单车之城)", distance: "20m 沙加缅度", google: "https://www.google.com/maps/search/UC+Davis" },
+    { name: "加州大学欧文 (UCI)", state: "CA", coords: [33.6405, -117.8443], usRank: 33, qsRank: 232, economy: "半导体、游戏开发、高科技园区", companies: "Broadcom, Blizzard", safety: "A+ (全美最安全)", distance: "45m LA", google: "https://www.google.com/maps/search/UC+Irvine" },
+    { name: "加州大学圣塔芭芭拉 (UCSB)", state: "CA", coords: [34.4140, -119.8489], usRank: 33, qsRank: 178, economy: "物理、材料科学、光学中心", companies: "Raytheon, AppFolio", safety: "B+ (派对区注意)", distance: "1.5h LA", google: "https://www.google.com/maps/search/UCSB" },
+    { name: "威斯康星麦迪逊 (UW)", state: "WI", coords: [43.0766, -89.4125], usRank: 35, qsRank: 116, economy: "科研、生物、保险业中心", companies: "Epic Systems", safety: "A- (优美湖区)", distance: "1.5h 密尔沃基", google: "https://www.google.com/maps/search/UW+Madison" },
+    { name: "伊利诺伊香槟 (UIUC)", state: "IL", coords: [40.1020, -88.2272], usRank: 35, qsRank: 69, economy: "计算机神校、制造业与农业工程", companies: "John Deere, Caterpillar", safety: "B+ (大学城中心)", distance: "2.5h 芝加哥", google: "https://www.google.com/maps/search/UIUC" },
+    { name: "波士顿学院 (BC)", state: "MA", coords: [42.3355, -71.1685], usRank: 35, qsRank: 630, note: "主校区延查尔斯河分布；医学院校区在波士顿South End",economy: "传统精英商科、会计、金融", companies: "Boston金融业", safety: "B+ (主校区高档住宅区繁华安全；医学院校区建议晚间使用校车)", distance: "15m 波士顿", google: "https://www.google.com/maps/search/Boston+College" },
+    { name: "塔夫茨大学 (Tufts)", state: "MA", coords: [42.4075, -71.1190], usRank: 35, qsRank: 344, economy: "国际关系、文理学院级别教育", companies: "咨询及非营利机构", safety: "A (安静近郊)", distance: "15m 波士顿", google: "https://www.google.com/maps/search/Tufts+University" },
+
+    // --- Top 41-60 ---
+    { name: "俄亥俄州立 (OSU)", state: "OH", coords: [40.0067, -83.0305], usRank: 41, qsRank: 196, economy: "制造业枢纽、教育中心", companies: "Honda, Nationwide", safety: "B (人口密集)", distance: "哥伦布市内", google: "https://www.google.com/maps/search/Ohio+State+University" },
+    { name: "波士顿大学 (BU)", state: "MA", coords: [42.3505, -71.1054], usRank: 41, qsRank: 108, economy: "传媒、商务、波士顿都市经济", companies: "Wayfair, Liberty Mutual", safety: "B+ (主干道繁华)", distance: "波士顿市内", google: "https://www.google.com/maps/search/Boston+University" },
+    { name: "罗格斯大学 (Rutgers)", state: "NJ", coords: [40.5003, -74.4474], usRank: 41, qsRank: 262, note: "主校区在New Brunswick；Newark和Camden为独立分校",economy: "生命科学走廊、制药业核心", companies: "Johnson & Johnson", safety: "B (纽瓦克旁，注意：Newark分校周边治安环境远不如主校区)", distance: "45m 纽约", google: "https://www.google.com/maps/search/Rutgers+University" },
+    { name: "华盛顿大学 (UW-Seattle)", state: "WA", coords: [47.6553, -122.3035], usRank: 41, qsRank: 76, economy: "西雅图科技总部集群", companies: "Amazon, Microsoft, Boeing", safety: "B- (注意校外治安)", distance: "西雅图市内", google: "https://www.google.com/maps/search/University+of+Washington" },
+    { name: "马里兰大学 (UMD)", state: "MD", coords: [38.9869, -76.9426], usRank: 44, qsRank: 164, economy: "国防工业、国家实验室、网络安全", companies: "Lockheed Martin, NSA", safety: "B- (近DC)", distance: "20m DC", google: "https://www.google.com/maps/search/UMD+College+Park" },
+    { name: "德州农工 (TAMU)", state: "TX", coords: [30.6187, -96.3365], usRank: 45, qsRank: 149, economy: "能源石油、空间技术、农林", companies: "Halliburton, Chevron", safety: "A (传统大学城)", distance: "1.5h 休斯顿", google: "https://www.google.com/maps/search/Texas+AM+University" },
+    { name: "利哈伊大学 (Lehigh)", state: "PA", coords: [40.6073, -75.3789], usRank: 46, qsRank: 650, economy: "传统工程强校、财务会计中心", companies: "Air Products", safety: "A- (山地校园)", distance: "1.5h 纽约", google: "https://www.google.com/maps/search/Lehigh+University" },
+    { name: "普渡大学 (Purdue)", state: "IN", coords: [40.4237, -86.9212], usRank: 46, qsRank: 101, economy: "航空航天与制造业重镇", companies: "Boeing, Cummins", safety: "A (极度安全)", distance: "1h 印第安纳", google: "https://www.google.com/maps/search/Purdue+University" },
+    { name: "罗切斯特大学 (UR)", state: "NY", coords: [43.1283, -77.6293], usRank: 47, qsRank: 271, economy: "光学、声乐、医学科研", companies: "Kodak (遗址), URMC", safety: "B (校内安保强)", distance: "1.5h 水牛城", google: "https://www.google.com/maps/search/University+of+Rochester" },
+    { name: "维克森林 (Wake Forest)", state: "NC", coords: [36.1353, -80.2790], usRank: 47, qsRank: 800, economy: "精英金融商科网络", companies: "Wells Fargo", safety: "A (庄园式环境)", distance: "1h 夏洛特", google: "https://www.google.com/maps/search/Wake+Forest+University" },
+    { name: "弗吉尼亚理工 (VT)", state: "VA", coords: [37.2284, -80.4234], usRank: 50, qsRank: 332, economy: "重工业工程、国防科研基地", companies: "Raytheon", safety: "A (宁静)", distance: "3h DC", google: "https://www.google.com/maps/search/Virginia+Tech" },
+    { name: "凯斯西储 (CWRU)", state: "OH", coords: [41.5042, -81.6084], usRank: 51, qsRank: 265, economy: "全球医疗高地、生物工程", companies: "Cleveland Clinic", safety: "C+ (周边较乱)", distance: "克利夫兰市内", google: "https://www.google.com/maps/search/Case+Western+Reserve+University" },
+    { name: "威廉玛丽学院 (W&M)", state: "VA", coords: [37.2707, -76.7121], usRank: 53, qsRank: 801, economy: "历史传承、法律、政府服务中心", companies: "美国联邦政府", safety: "A+ (古镇安全)", distance: "1h 里士满", google: "https://www.google.com/maps/search/College+of+William+and+Mary" },
+    { name: "加州大学圣克鲁兹 (UCSC)", state: "CA", coords: [36.9916, -122.0608], usRank: 55, qsRank: 450, economy: "硅谷后花园、天文、计算机科学", companies: "Google (分部)", safety: "B+ (森林环境)", distance: "45m 圣何塞", google: "https://www.google.com/maps/search/UC+Santa+Cruz" },
+    { name: "乔治华盛顿大学 (GWU)", state: "DC", coords: [38.8997, -77.0486], usRank: 56, qsRank: 380, economy: "外交、政治中心、紧邻白宫", companies: "State Dept, IMF", safety: "B (市区)", distance: "DC特区内", google: "https://www.google.com/maps/search/GWU" },
+    { name: "康涅狄格大学 (UConn)", state: "CT", coords: [41.8077, -72.2540], usRank: 57, qsRank: 460, economy: "体育强校、保险业核心区", companies: "Aetna, The Hartford", safety: "A (安静郊外)", distance: "1.5h 纽约/波士顿", google: "https://www.google.com/maps/search/UConn" },
+    { name: "佩珀代因大学 (Pepperdine)", state: "CA", coords: [34.0416, -118.7095], usRank: 58, qsRank: 1000, economy: "商科、法律、海滨度假胜地经济", companies: "娱乐产业、私企", safety: "A+ (马里布)", distance: "45m LA", google: "https://www.google.com/maps/search/Pepperdine+University" },
+    { name: "佛罗里达州立 (FSU)", state: "FL", coords: [30.4419, -84.2985], usRank: 59, qsRank: 500, economy: "首府政治、保险与法律", companies: "Florida Gov", safety: "B (州府)", distance: "2h 杰克逊维尔", google: "https://www.google.com/maps/search/Florida+State+University" },
+    { name: "亚利桑那州立 (ASU)", state: "AZ", coords: [33.4242, -111.9281], usRank: 60, qsRank: 195, economy: "微电子创新、供应链管理", companies: "Intel, Honeywell", safety: "B (繁华)", distance: "15m 凤凰城", google: "https://www.google.com/maps/search/ASU" },
+    { name: "特拉华大学 (UDel)", state: "DE", coords: [39.6781, -75.7506], usRank: 60, qsRank: 600, economy: "化学工业、公司注册免税中心", companies: "DuPont, Chase", safety: "A- (大学城)", distance: "1h 费城", google: "https://www.google.com/maps/search/University+of+Delaware" }
+];
+
+const stateNameMapFull = {
+    'Alabama': '阿拉巴马', 'Alaska': '阿拉斯加', 'Arizona': '亚利桑那', 'Arkansas': '阿肯色', 'California': '加利福尼亚',
+    'Colorado': '科罗拉多', 'Connecticut': '康涅狄格', 'Delaware': '特拉华', 'Florida': '佛罗里达', 'Georgia': '佐治亚',
+    'Hawaii': '夏威夷', 'Idaho': '爱荷华', 'Illinois': '伊利诺伊', 'Indiana': '印第安纳', 'Iowa': '爱荷华',
+    'Kansas': '堪萨斯', 'Kentucky': '肯塔基', 'Louisiana': '路易斯安那', 'Maine': '缅因', 'Maryland': '马里兰',
+    'Massachusetts': '马萨诸塞', 'Michigan': '密歇根', 'Minnesota': '明尼苏达', 'Mississippi': '密西西比', 'Missouri': '密苏里',
+    'Montana': '蒙大拿', 'Nebraska': '内布拉斯加', 'Nevada': '内华达', 'New Hampshire': '新罕布什尔', 'New Jersey': '新泽西',
+    'New Mexico': '新墨西哥', 'New York': '纽约', 'North Carolina': '北卡罗来纳', 'North Dakota': '北达科他', 'Ohio': '俄亥俄',
+    'Oklahoma': '俄克拉荷马', 'Oregon': '俄勒冈', 'Pennsylvania': '宾夕法尼亚', 'Rhode Island': '罗德岛', 'South Carolina': '南卡罗来纳',
+    'South Dakota': '南达科他', 'Tennessee': '田纳西', 'Texas': '德克萨斯', 'Utah': '犹他', 'Vermont': '佛蒙特',
+    'Virginia': '弗吉尼亚', 'Washington': '华盛顿', 'West Virginia': '西弗吉尼亚', 'Wisconsin': '威斯康星', 'Wyoming': '怀俄明',
+    'District of Columbia': '华盛顿DC', 'Puerto Rico': '波多黎各'
+};
+
+const stateNameMap = {
+    'CA': '加州', 'NY': '纽约', 'MA': '马萨诸塞', 'TX': '德州', 'PA': '宾州', 'IL': '伊利诺伊',
+    'NJ': '新泽西', 'CT': '康涅狄格', 'MD': '马里兰', 'NC': '北卡', 'RI': '罗德岛',
+    'NH': '新罕布什尔', 'TN': '田纳西', 'IN': '印第安纳', 'MI': '密歇根', 'GA': '佐治亚',
+    'MO': '密苏里', 'VA': '弗吉尼亚', 'FL': '佛罗里达', 'WI': '威斯康星', 'OH': '俄亥俄',
+    'WA': '华盛顿', 'AZ': '亚利桑那', 'DE': '特拉华', 'DC': '华盛顿DC'
+};
+
+let selectedUnis = []; // 记录侧边栏选中的学校
+
+  // --- 2. 地图初始化 ---
+    const map = L.map('map').setView([37.8, -96], 4);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png').addTo(map);
+
+    // 初始化聚合图层
+    let markerLayer = L.markerClusterGroup({
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        disableClusteringAtZoom: 10 // 缩放到10级时自动展开所有气泡
+    }).addTo(map);
+
+    // --- 3. 样式与渲染函数 ---
+    function getStateStyle(feature) {
+        const palette = ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA'];
+        let hash = 0;
+        const name = feature.properties.name || "";
+        for (let i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return {
+            fillColor: palette[Math.abs(hash) % palette.length],
+            weight: 1.5,
+            opacity: 1,
+            color: 'white',
+            fillOpacity: 0.3
+        };
+    }
+
+    function renderStateLayers() {
+        if (typeof statesData === 'undefined') {
+            console.error("statesData 未定义，请检查 us-states.js 是否正确加载");
+            return;
+        }
+        L.geoJson(statesData, {
+            style: getStateStyle,
+            onEachFeature: function(feature, layer) {
+                const fullName = feature.properties.name;
+                const chineseName = stateNameMapFull[fullName];
+                if (chineseName) {
+                    const center = layer.getBounds().getCenter();
+                    L.marker(center, {
+                        icon: L.divIcon({
+                            className: 'state-label-text',
+                            html: `<div>${chineseName}</div>`,
+                            iconSize: [80, 20]
+                        }),
+                        interactive: false
+                    }).addTo(map);
+                }
+            }
+        }).addTo(map);
+    }
+
+    function getBubbleColor(state) {
+        const colors = { 'CA': '#ff7800', 'NY': '#3388ff', 'MA': '#72af26', 'TX': '#e67e22', 'PA': '#9b59b6', 'IL': '#1abc9c' };
+        return colors[state] || '#3498db';
+    }
+
+   function initStateFilter() {
+        const stateSelect = document.getElementById('stateSelect');
+        // 提取所有有学校存在的州缩写
+        const states = [...new Set(universityData.map(u => u.state))].sort();
+        
+        states.forEach(state => {
+            const option = document.createElement('option');
+            option.value = state;
+
+            // 查找逻辑：
+            // 1. 先从缩写对应中文名（stateNameMap）里找
+            // 2. 如果没有，显示缩写本身
+            const chineseName = stateNameMap[state] || state;
+            
+            option.textContent = `${chineseName} (${state})`; 
+            stateSelect.appendChild(option);
+        });
+    }
+
+    function applyFilters() {
+        // 1. 清除现有气泡
+        markerLayer.clearLayers();
+
+        const selectedState = document.getElementById('stateSelect').value;
+        const maxRank = parseInt(document.getElementById('rankSelect').value);
+
+        // 2. 筛选数据
+        const filteredData = universityData.filter(u => {
+            const matchState = (selectedState === 'all' || u.state === selectedState);
+            const matchRank = u.usRank <= maxRank;
+            return matchState && matchRank;
+        });
+
+        // 3. 绘制新气泡
+        filteredData.forEach(u => {
+            const marker = L.circleMarker(u.coords, {
+                radius: 10,
+                fillColor: getBubbleColor(u.state),
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.9
+            });
+
+            const popupContent = `
+                <div class="u-popup">
+                    <div class="u-title">${u.name}</div>
+                    <span class="tag tag-us">US News #${u.usRank}</span>
+                    <span class="tag tag-qs">QS #${u.qsRank}</span><br>
+                    <hr style="border:none; border-top:1px solid #eee; margin:10px 0;">
+                    
+                    <div class="u-info-row">
+                        <b>💼 经济环境：</b>${u.economy}
+                    </div>
+                    <div class="u-info-row">
+                        <b>🏢 核心公司：</b>${u.companies || '暂无数据'}
+                    </div>
+                    <div class="u-info-row">
+                        <b>🛡️ 安全系数：</b>${u.safety}
+                    </div>
+                    <div class="u-info-row">
+                        <b>📍 城市距离：</b>${u.distance}
+                    </div>
+                    
+                    <div style="margin-top:12px; text-align:center;">
+                        <a href="${u.google}" target="_blank" class="street-view-btn">
+                            📍 查看谷歌地图实景
+                        </a>
+                    </div>
+                </div>
+            `;
+            marker.bindPopup(popupContent, { 
+    autoClose: false,      // 点击地图其他地方时不自动关闭气泡
+    closeOnClick: false    // 点击新气泡时不关闭旧气泡
+});
+            markerLayer.addLayer(marker);
+        });
+
+        // 4. 缩放逻辑
+        if (selectedState === 'all') {
+            map.flyTo([37.8, -96], 4);
+        } else if (filteredData.length > 0) {
+            // 注意这里使用的是 markerLayer.getBounds()
+            map.flyToBounds(markerLayer.getBounds(), {
+                padding: [50, 50],
+                maxZoom: 7,
+                duration: 1.5
+            });
+        }
+    } // 闭合 applyFilters
+
+// ==============侧边栏专属模块============================
+function renderSidebar() {
+    const container = document.getElementById('university-list');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    for (let i = 0; i < 6; i++) {
+        const start = i * 10 + 1;
+        const end = (i + 1) * 10;
+        
+        const groupTitle = document.createElement('div');
+        groupTitle.className = 'rank-group-title';
+        groupTitle.innerText = `RANK ${start} - ${end}`;
+        container.appendChild(groupTitle);
+
+        const groupUnis = universityData.filter(u => u.usRank >= start && u.usRank <= end);
+        
+        groupUnis.forEach(u => {
+            const item = document.createElement('div');
+            item.className = 'uni-item';
+            item.setAttribute('data-name', u.name); 
+            item.innerHTML = `<small>#${u.usRank}</small> ${u.name}`;
+            item.onclick = () => toggleUniversity(u, item);
+            container.appendChild(item);
+        });
+    }
+}
+
+function toggleUniversity(u, element) {
+    const index = selectedUnis.indexOf(u.name);
+    
+    // 1. 更新选中状态
+    if (index > -1) {
+        selectedUnis.splice(index, 1);
+        element.classList.remove('selected');
+    } else {
+        // 修改为上限 3
+        if (selectedUnis.length >= 3) {
+            alert("最多只能同时对比 3 所学校哦！");
+            return;
+        }
+        selectedUnis.push(u.name);
+        element.classList.add('selected');
+    }
+
+    // 2. 更新计数器文字
+    const countLabel = document.getElementById('selection-count');
+    if (countLabel) countLabel.innerText = `已选: ${selectedUnis.length}/3`;
+
+    // 3. 执行渲染
+    renderFocusedMarkers();
+    updateComparisonTable(); // 每次气泡更新时同步更新表格
+
+    // 4. ✨ 新增：更新侧边栏所有学校的可点击状态
+    updateSidebarLockStatus();
+}
+
+function resetSelection() {
+    // 1. 清空已选名单数组
+    selectedUnis = [];
+
+    // 2. 移除侧边栏所有学校的状态
+    document.querySelectorAll('.uni-item').forEach(item => {
+        item.classList.remove('selected');
+        item.classList.remove('disabled'); // ✨ 关键：重置时解除“变灰”
+    });
+
+    // 3. 重置已选数量文字 (同步为 3)
+    const countLabel = document.getElementById('selection-count');
+    if (countLabel) countLabel.innerText = `已选: 0/3`;
+
+    // 4. 恢复默认气泡显示
+    renderFocusedMarkers();
+
+    // 5. 视野拉回到全美
+    map.flyTo([37.8, -96], 4, { duration: 1.5 });
+    
+    console.log("已重置所有选择，恢复全览模式");
+}
+
+// ✨ 补全这个函数，解决“未定义”报错
+function updateSidebarLockStatus() {
+    const allItems = document.querySelectorAll('.uni-item');
+    const isFull = selectedUnis.length >= 3;
+
+    allItems.forEach(item => {
+        // 如果已经选满了，且当前项没被选中，就加上 disabled 样式
+        if (isFull && !item.classList.contains('selected')) {
+            item.classList.add('disabled');
+        } else {
+            // 否则移除 disabled 样式
+            item.classList.remove('disabled');
+        }
+    });
+}
+
+// 新增：计算并缩放到所有已选学校的中心
+function updateSelectionView() {
+    if (selectedUnis.length === 0) return;
+
+    const selectedCoords = [];
+    markerLayer.eachLayer(marker => {
+        // 检查这个 Marker 是否在已选名单中
+        const isSelected = selectedUnis.some(name => marker.getPopup().getContent().includes(name));
+        if (isSelected) {
+            selectedCoords.push(marker.getLatLng());
+        }
+    });
+
+    if (selectedCoords.length === 1) {
+        map.flyTo(selectedCoords[0], 8, { duration: 1.5 });
+    } else if (selectedCoords.length > 1) {
+        // 包含所有选中点的边界
+        const bounds = L.latLngBounds(selectedCoords);
+        map.flyToBounds(bounds, { padding: [100, 100], duration: 1.5 });
+    }
+}
+
+function renderFocusedMarkers() {
+    // 先清空地图上的所有气泡
+    markerLayer.clearLayers();
+
+    // 获取当前下拉框的过滤条件（为了在未选中学校时恢复默认显示）
+    const selectedState = document.getElementById('stateSelect').value;
+    const maxRank = parseInt(document.getElementById('rankSelect').value);
+
+    let displayData = [];
+
+    if (selectedUnis.length > 0) {
+        // --- 聚焦模式：只显示选中的学校 ---
+        displayData = universityData.filter(u => selectedUnis.includes(u.name));
+    } else {
+        // --- 默认模式：显示符合下拉框筛选的所有学校 ---
+        displayData = universityData.filter(u => {
+            const matchState = (selectedState === 'all' || u.state === selectedState);
+            return matchState && u.usRank <= maxRank;
+        });
+    }
+
+    // 绘制气泡
+    displayData.forEach(u => {
+        const marker = L.circleMarker(u.coords, {
+            radius: 12, // 选中模式下稍微调大一点，更醒目
+            fillColor: getBubbleColor(u.state),
+            color: '#fff',
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 0.9
+        });
+
+        marker.bindPopup(createPopupHtml(u), { autoClose: false, closeOnClick: false });
+        markerLayer.addLayer(marker);
+        
+        // 如果是聚焦模式，自动打开气泡
+        if (selectedUnis.length > 0) {
+            setTimeout(() => marker.openPopup(), 300);
+        }
+    });
+
+    // 自动调整视野
+    if (selectedUnis.length > 0) {
+        const bounds = markerLayer.getBounds();
+        map.flyToBounds(bounds, { padding: [100, 100], duration: 1 });
+    } else {
+        // 如果清空了选择，回退到全美视野或州视野
+        applyFilters(); 
+    }
+}
+
+// 提取一个通用的 Popup HTML 生成函数，保持代码整洁
+function createPopupHtml(u) {
+    return `
+        <div class="u-popup">
+            <div class="u-title">${u.name}</div>
+            <span class="tag tag-us">US News #${u.usRank}</span>
+            <span class="tag tag-qs">QS #${u.qsRank}</span>
+            <hr style="border:none; border-top:1px solid #eee; margin:10px 0;">
+            <div class="u-info-row"><b>💼 经济环境：</b>${u.economy}</div>
+            <div class="u-info-row"><b>🏢 核心公司：</b>${u.companies || '暂无数据'}</div>
+            <div class="u-info-row"><b>🛡️ 安全系数：</b>${u.safety}</div>
+            <div class="u-info-row"><b>📍 城市距离：</b>${u.distance}</div>
+            <div style="margin-top:12px; text-align:center;">
+                <a href="${u.google}" target="_blank" class="street-view-btn">📍 查看谷歌地图实景</a>
+            </div>
+        </div>
+    `;
+}
+
+
+    // --- 5. 启动 ---
+    window.onload = function() {
+    renderStateLayers(); // 画州背景
+    initStateFilter();   // 填充下拉菜单
+    applyFilters();      // 初始渲染气泡
+    renderSidebar();     // 【新增】生成侧边栏列表
+}
+
+function updateComparisonTable() {
+    const section = document.getElementById('comparison-section');
+    const headerRow = document.getElementById('compare-header');
+    const body = document.getElementById('compare-body');
+
+    // 只有选中 2 个或 3 个学校时才显示对比模块
+    if (selectedUnis.length >= 2) {
+        section.style.display = 'block';
+        const selectedData = universityData.filter(u => selectedUnis.includes(u.name));
+
+        // 清空旧数据
+        headerRow.innerHTML = '<th>核心指标</th>';
+        body.innerHTML = '';
+
+        // 生成表头（校名）
+        selectedData.forEach(u => {
+            headerRow.innerHTML += `<th>${u.name.split(' (')[0]}</th>`; // 只显示中文名
+        });
+
+        // 定义要对比的维度
+        const dimensions = [
+            { label: 'U.S. News 排名', key: 'usRank', prefix: '#' },
+            { label: 'QS 世界排名', key: 'qsRank', prefix: '#' },
+            { label: '地理位置/州', key: 'state', prefix: '' },
+            { label: '距离大城市', key: 'distance', prefix: '' },
+            { label: '就业环境', key: 'economy', prefix: '' },
+            { label: '名企资源', key: 'companies', prefix: '' },
+            { label: '安全系数', key: 'safety', prefix: '' }
+        ];
+
+        // 生成每一行数据
+        dimensions.forEach(dim => {
+            let rowHtml = `<tr><td>${dim.label}</td>`;
+            selectedData.forEach(u => {
+                let value = u[dim.key] || '暂无数据';
+                // 简单的美化处理
+                if (dim.key === 'usRank' || dim.key === 'qsRank') {
+                    value = `<span class="compare-tag">${dim.prefix}${value}</span>`;
+                }
+                rowHtml += `<td>${value}</td>`;
+            });
+            rowHtml += `</tr>`;
+            body.innerHTML += rowHtml;
+        });
+        
+        // 自动滚动到对比区域
+        section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+        section.style.display = 'none';
+    }
+};
+</script>
+
+</body>
+</html>

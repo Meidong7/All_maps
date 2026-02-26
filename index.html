@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球名校探索指南</title>
+    <style>
+        /* 苹果极简风基础设置 */
+        :root {
+            --bg-color: #f5f5f7;
+            --text-main: #1d1d1f;
+            --text-sub: #86868b;
+            --card-uk: #e3e7eb;
+            --card-us: #e5ebe7;
+            --card-au: #ebe6e3;
+            --consult-bg: #ffffff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            text-align: center;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 首页容器与排版 */
+        #home-page {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 80px 20px 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .header-section {
+            max-width: 700px;
+            margin-bottom: 60px;
+        }
+
+        h1 {
+            font-size: 42px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 16px;
+        }
+
+        .subtitle {
+            font-size: 18px;
+            line-height: 1.6;
+            color: var(--text-sub);
+            margin: 0;
+        }
+
+        /* 卡片容器与莫兰迪色卡片样式 */
+        .card-container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            width: 100%;
+            margin-bottom: 80px;
+        }
+
+        .map-card {
+            flex: 1;
+            min-width: 260px;
+            max-width: 300px;
+            padding: 40px 20px;
+            border-radius: 24px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+
+        .card-uk { background-color: var(--card-uk); }
+        .card-us { background-color: var(--card-us); }
+        .card-au { background-color: var(--card-au); }
+
+        .map-card h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+            color: var(--text-main);
+        }
+
+        .map-card p {
+            font-size: 14px;
+            color: #555;
+            margin: 0;
+        }
+
+        .map-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 16px 32px rgba(0,0,0,0.08);
+        }
+
+        /* 底部咨询模块 */
+        .consult-section {
+            background-color: var(--consult-bg);
+            padding: 40px;
+            border-radius: 24px;
+            width: 100%;
+            max-width: 800px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+            margin-top: auto;
+        }
+
+        .tag {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #ffffff;
+            background-color: #c4c4c4;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        .consult-section h2 {
+            font-size: 24px;
+            margin: 0 0 10px 0;
+        }
+
+        .consult-section p {
+            font-size: 15px;
+            color: var(--text-sub);
+            margin: 0 0 24px 0;
+        }
+
+        .contact-info {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            font-size: 16px;
+            font-weight: 500;
+            background: var(--bg-color);
+            padding: 16px 32px;
+            border-radius: 16px;
+            display: inline-flex;
+        }
+
+        /* 首页微信号一键复制小按钮 */
+        .copy-text-btn {
+            background: none;
+            border: none;
+            color: #0066cc;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 4px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        
+        .copy-text-btn:hover {
+            background: rgba(0, 102, 204, 0.1);
+        }
+
+        .divider {
+            color: #d2d2d7;
+            font-weight: 300;
+        }
+
+        /* 地图展示区样式 */
+        #map-viewer {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: #fff;
+            z-index: 100;
+        }
+
+        /* 苹果风悬浮按钮通用样式 (毛玻璃) */
+        .floating-btn {
+            position: absolute;
+            top: 24px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: var(--text-main);
+            border: 1px solid rgba(0,0,0,0.05);
+            padding: 10px 20px;
+            font-size: 15px;
+            font-weight: 500;
+            border-radius: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .floating-btn:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: scale(1.05);
+        }
+
+        /* 左右分布 */
+        #back-btn { left: 24px; }
+        #copy-wx-btn { right: 24px; }
+
+        /* 复制成功时的绿色状态 */
+        .btn-success {
+            color: #34c759 !important; /* 苹果经典绿 */
+            border-color: rgba(52, 199, 89, 0.3) !important;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 32px; }
+            .contact-info {
+                flex-direction: column;
+                gap: 8px;
+                padding: 16px;
+            }
+            .divider { display: none; }
+            /* 手机端稍微缩小按钮边距 */
+            .floating-btn { top: 16px; padding: 8px 16px; font-size: 14px; }
+            #back-btn { left: 16px; }
+            #copy-wx-btn { right: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="home-page">
+        <div class="header-section">
+            <h1>全球名校探索指南</h1>
+            <p class="subtitle">通过交互式数据地图，直观掌握英、美、澳名校的地理位置分布与周边环境。一站式对比，助您清晰规划未来的学术之路。（本地图仅支持研究生申请）</p>
+        </div>
+
+        <div class="card-container">
+            <div class="map-card card-uk" onclick="openMap('UK_map.html')">
+                <h3>英国 QS 前 100</h3>
+                <p>点击探索英伦学府分布</p>
+            </div>
+            
+            <div class="map-card card-us" onclick="openMap('US_map.html')">
+                <h3>美国 U.S. News 前 60</h3>
+                <p>点击探索北美名校版图</p>
+            </div>
+            
+            <div class="map-card card-au" onclick="openMap('AU_map.html')">
+                <h3>澳洲八大</h3>
+                <p>点击探索南半球顶尖教育</p>
+            </div>
+        </div>
+
+        <div class="consult-section">
+            <span class="tag">专属服务</span>
+            <h2>需要进一步的选校指导？</h2>
+            <p>我们提供免费私人定制留学咨询，为您深度解析地图背后的择校逻辑。</p>
+            <div class="contact-info">
+                <span>微信号：wmcx123456 <button class="copy-text-btn" onclick="copyText('wmcx123456', this)">[复制]</button></span>
+                <span class="divider">|</span>
+                <span>邮箱：NBShoushi@outlook.com</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="map-viewer">
+        <button id="back-btn" class="floating-btn" onclick="goHome()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            返回导航页
+        </button>
+        
+        <button id="copy-wx-btn" class="floating-btn" onclick="copyWeChatFromMap()">
+            <svg id="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span id="copy-text">复制加微 wmcx123456</span>
+        </button>
+
+        <iframe id="map-frame" src=""></iframe>
+    </div>
+
+    <script>
+        const homePage = document.getElementById('home-page');
+        const mapViewer = document.getElementById('map-viewer');
+        const mapFrame = document.getElementById('map-frame');
+
+        // 打开地图
+        function openMap(mapUrl) {
+            setTimeout(() => {
+                mapFrame.src = mapUrl;
+                homePage.style.display = 'none';
+                mapViewer.style.display = 'block';
+            }, 100);
+        }
+
+        // 返回首页
+        function goHome() {
+            mapFrame.src = '';
+            mapViewer.style.display = 'none';
+            homePage.style.display = 'flex';
+        }
+
+        // 通用复制功能 (用于首页的文字小按钮)
+        function copyText(text, btnElement) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = btnElement.innerText;
+                btnElement.innerText = '[已复制]';
+                btnElement.style.color = '#34c759';
+                setTimeout(() => {
+                    btnElement.innerText = originalText;
+                    btnElement.style.color = '#0066cc';
+                }, 2000);
+            });
+        }
+
+        // 地图右上角毛玻璃按钮的复制功能
+        function copyWeChatFromMap() {
+            const wechatId = 'wmcx123456';
+            navigator.clipboard.writeText(wechatId).then(() => {
+                const btn = document.getElementById('copy-wx-btn');
+                const textSpan = document.getElementById('copy-text');
+                const icon = document.getElementById('copy-icon');
+                
+                // 变绿并更改文字
+                btn.classList.add('btn-success');
+                textSpan.innerText = '已复制！快去添加吧';
+                // 将图标改为打勾
+                icon.innerHTML = '<polyline points="20 6 9 17 4 12"></polyline>';
+
+                // 2.5秒后恢复原状
+                setTimeout(() => {
+                    btn.classList.remove('btn-success');
+                    textSpan.innerText = '复制加微 ' + wechatId;
+                    // 恢复复制图标
+                    icon.innerHTML = '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>';
+                }, 2500);
+            }).catch(err => {
+                alert('您的浏览器可能不支持一键复制，请手动复制：' + wechatId);
+            });
+        }
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>英国 QS Top 100 名校交互对比系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+    <style>
+        :root { --primary: #002366; --accent: #c8102e; --gray: #f4f7f6; }
+        body { background-color: #f0f2f5; margin: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+        
+        .main-container {
+            max-width: 1400px; margin: 20px auto; background: #fff;
+            padding: 20px; border-radius: 15px; display: flex; gap: 20px; height: 65vh;
+        }
+
+        #sidebar { width: 320px; display: flex; flex-direction: column; background: var(--gray); border-radius: 10px; padding: 10px; }
+        #university-list { flex: 1; overflow-y: auto; }
+        .uni-item { 
+            padding: 10px; margin-bottom: 5px; background: #fff; border: 1px solid #ddd; 
+            border-radius: 5px; cursor: pointer; font-size: 13px; transition: 0.2s;
+        }
+        .uni-item:hover { border-color: var(--accent); background: #fff9f9; }
+        .uni-item.selected { border-left: 5px solid var(--accent); background: #fff5f5; font-weight: bold; }
+
+        #map { flex: 1; border-radius: 10px; z-index: 1; }
+
+        .comparison-section {
+            max-width: 1400px; margin: 20px auto; background: #fff;
+            padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            min-height: 200px;
+        }
+        .comp-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .comp-table th, .comp-table td { border: 1px solid #eee; padding: 12px; text-align: left; font-size: 14px; }
+        .dim-label { background: #f8f9fa; width: 140px; font-weight: bold; color: #666; }
+        .uni-name-header { background: var(--primary) !important; color: white !important; text-align: center; font-size: 16px; }
+        
+        /* 弹窗样式 */
+        .u-popup { line-height: 1.6; font-size: 13px; min-width: 250px; }
+        .u-title { font-weight: bold; font-size: 15px; color: var(--primary); border-bottom: 2px solid var(--accent); margin-bottom: 8px; }
+        .tag-qs { background: #f1c40f; color: #333; padding: 1px 5px; border-radius: 3px; font-size: 11px; float: right; }
+        .label { font-weight: bold; color: #555; }
+        .val-highlight { color: var(--accent); font-weight: bold; }
+        .placeholder { text-align: center; padding: 40px; color: #999; border: 2px dashed #eee; border-radius: 10px; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 8px 0; }
+
+        /* 数据来源小字样式 */
+        .data-source { 
+            font-size: 12px; color: #999; text-align: right; margin-top: 15px; 
+            font-style: italic; border-top: 1px dashed #eee; padding-top: 10px;
+        }
+
+        /* 租金进度条样式 */
+        .rent-bar-container { background: #eee; border-radius: 10px; height: 10px; width: 100%; margin-top: 8px; overflow: hidden; }
+        .rent-bar-fill { height: 100%; background: linear-gradient(90deg, #f1c40f, #e67e22, #c8102e); transition: width 0.6s ease-in-out; }
+        .rent-label { display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; color: #888; }
+    </style>
+</head>
+<body>
+
+<div id="header-area" style="text-align: center; padding: 20px 0;">
+    <h1 style="color: var(--primary); margin: 0;">🇬🇧 英国 QS Top 100 名校深度对比地图</h1>
+    <p style="color: #666;">点击左侧列表选择 2 所学校开启深度对比 | 研究生申请微信咨询：wmcx123456</p>
+</div>
+
+<div class="main-container">
+    <div id="sidebar">
+        <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <strong>学校名录 (QS 2026)</strong>
+            <button onclick="resetSelection()" style="cursor:pointer; padding: 2px 8px;">重置</button>
+        </div>
+        <div id="university-list"></div>
+    </div>
+    <div id="map"></div>
+</div>
+
+<div class="comparison-section">
+    <div id="comp-grid">
+        <div class="placeholder">请在上方列表勾选 2 所学校开启深度对比</div>
+    </div>
+</div>
+
+<script>
+    // --- 完整 17 所学校数据保持不变 ---
+   const universityData = [
+    { 
+        name: "帝国理工学院 (Imperial)", 
+        city: "伦敦 (South Kensington)", 
+        coords: [51.4988, -0.1749], 
+        qsRank: 2, 
+        group: "G5 / 罗素集团", 
+        strength: "理工科、医学、商学院 (全英产研结合最紧密的学府)", 
+        economy: "位于伦敦核心腹地，全球金融与高科技巨头总部云集，就业资源顶级", 
+        env: "典型的精英主义氛围，紧邻海德公园与博物馆区，生活节奏极快", 
+        dist: "South Kensington (本部); White City (创新园区); Silwood Park (生态)", 
+        rent: "£350 - £550/周", 
+        traffic: "South Kensington 地铁站 (蓝线/黄线/绿线枢纽)",
+        employ: "92% (雇主声誉全球领先，STEM 毕业生首选目标)", 
+        intl: "约 60% (极高的国际化程度)" 
+    },
+    { 
+        name: "牛津大学 (Oxford)", 
+        city: "牛津", 
+        coords: [51.7548, -1.2544], 
+        qsRank: 4, 
+        group: "G5 / 罗素集团", 
+        strength: "人文、医学、PPE (政经哲学)、生命科学", 
+        economy: "世界级制药中心 (阿斯利康总部) 与高科技衍生企业聚集地", 
+        env: "古老的学院制建筑，全城皆校，学术荣誉感与历史厚重感极强", 
+        dist: "分布于全市的 39 个独立学院 (Colleges)", 
+        rent: "£190 - £350/周", 
+        traffic: "主要依靠步行与自行车；Gloucester Green 巴士站直达伦敦",
+        employ: "91% (全球精英校友网络，顶级投行与律所的绝对 Target School)", 
+        intl: "约 45% (汇聚全球顶尖学者与精英子弟)" 
+    },
+    { 
+        name: "剑桥大学 (Cambridge)", 
+        city: "剑桥", 
+        coords: [52.2043, 0.1149], 
+        qsRank: 6, 
+        group: "G5 / 罗素集团", 
+        strength: "数学、物理、计算机科学、工程学", 
+        economy: "“硅沼 (Silicon Fen)” 欧洲顶级高科技产业集群核心，科技创业沃土", 
+        env: "优美的康河景观，严谨且静谧的学术殿堂，科研压力较大", 
+        dist: "分布于全城的 31 个独立学院 (Colleges)", 
+        rent: "£180 - £340/周", 
+        traffic: "著名的自行车之城，步行可达大部分学术机构",
+        employ: "90% (科技创业与学术科研领域拥有全球统治力)", 
+        intl: "约 40% (国际学生竞争极其激烈，生源极优)" 
+    },
+    { 
+        name: "伦敦大学学院 (UCL)", 
+        city: "伦敦 (Bloomsbury)", 
+        coords: [51.5246, -0.1340], 
+        qsRank: 9, 
+        group: "G5 / 罗素集团", 
+        strength: "教育学 (IOE)、建筑学 (Bartlett)、神经科学、法律", 
+        economy: "地处伦敦一区，周边遍布智库、博物馆与全球咨询公司总部", 
+        env: "典型的都市开放式校园，由于地处核心区，校区与街道融合，极其便利", 
+        dist: "Bloomsbury (核心区); UCL East (奥运村新校区)", 
+        rent: "£320 - £500/周", 
+        traffic: "Euston / Euston Square / Warren Street 多个枢纽包围",
+        employ: "88% (伦敦就业市场认可度极高，全球跨国企业核心生源地)", 
+        intl: "约 55% (极度多元化，中国学生基数较大)" 
+    },
+    { 
+        name: "伦敦国王学院 (KCL)", 
+        city: "伦敦 (Strand)", 
+        coords: [51.5115, -0.1160], 
+        qsRank: 31, 
+        group: "罗素集团", 
+        strength: "精神医学 (IoPPN)、护理学、国际关系、战争研究", 
+        economy: "坐落泰晤士河畔，毗邻司法机关、议会与世界顶尖研究型医院", 
+        env: "极具英伦皇室风格，各校区均位于伦敦绝对核心地带，人文气息浓郁", 
+        dist: "Strand (人文); Guy's (医学); Waterloo (社科); Denmark Hill (心理)", 
+        rent: "£320 - £480/周", 
+        traffic: "Temple / Waterloo / London Bridge 地铁站环绕",
+        employ: "86% (在公共政策、医疗卫生、法律界拥有极强的影响力)", 
+        intl: "约 50% (高度国际化的精英学府)" 
+    },
+    { 
+        name: "爱丁堡大学 (Edinburgh)", 
+        city: "爱丁堡", 
+        coords: [55.9445, -3.1892], 
+        qsRank: 34, 
+        group: "罗素集团", 
+        strength: "信息学 (AI全英顶尖)、艺术设计、人文历史、兽医", 
+        economy: "苏格兰首府，英国除伦敦外最大的金融中心，商业氛围稳健", 
+        env: "极其壮丽的苏格兰古典风格，古城区与学术区交织，风景如画", 
+        dist: "Central Area (人文); King's Buildings (理工); Little France (医学)", 
+        rent: "£200 - £350/周", 
+        traffic: "公交网络极其发达，Waverley 火车站连通英国全境",
+        employ: "82% (在苏格兰及全球学术界拥有强大威望)", 
+        intl: "约 45% (深受北美与亚洲学生青睐)" 
+    },
+    { 
+        name: "曼彻斯特大学 (Manchester)", 
+        city: "曼彻斯特", 
+        coords: [53.4668, -2.2339], 
+        qsRank: 35, 
+        group: "罗素集团", 
+        strength: "商科、物理学 (石墨烯发现地)、化学工程、材料学", 
+        economy: "英国“北方经济引擎”核心，数字媒体与先进制造基地，成本较低", 
+        env: "充满活力的都市大学，传统红砖与现代建筑结合，学生活动极丰富", 
+        dist: "Oxford Road (主校区); Fallowfield (主要住宿区)", 
+        rent: "£160 - £280/周", 
+        traffic: "全欧洲最繁忙的公交走廊 Oxford Road 直达市区枢纽",
+        employ: "85% (连续多年蝉联英国最受顶级雇主欢迎大学第一名)", 
+        intl: "约 40% (全英学生规模最大的大学之一)" 
+    },
+    { 
+        name: "布里斯托大学 (Bristol)", 
+        city: "布里斯托", 
+        coords: [51.4584, -2.6030], 
+        qsRank: 51, 
+        group: "罗素集团", 
+        strength: "航空航天工程、影视制作、地球科学、通用工程", 
+        economy: "英国西南部创意产业与工程工业 (空客/罗罗) 枢纽，经济充满活力", 
+        env: "位于极具艺术气息的山城，环境优美，校园与城市社区无缝融合", 
+        dist: "Clifton (主校区); Langford (兽医)", 
+        rent: "£180 - £320/周", 
+        traffic: "公交网络覆盖全市，Clifton 区域多为坡道，步行较多",
+        employ: "84% (毕业生广泛进入顶级工程企业与创意媒体行业)", 
+        intl: "约 30% (以本土及欧美学生为主，近年亚洲比例稳步上升)" 
+    },
+    { 
+        name: "伦敦政治经济学院 (LSE)", 
+        city: "伦敦 (Holborn)", 
+        coords: [51.5144, -0.1165], 
+        qsRank: 56, 
+        group: "G5 / 罗素集团", 
+        strength: "经济学、社会学、政治学、会计金融 (全英商科顶尖)", 
+        economy: "直接嵌入伦敦法律与金融中心，校友资源深度覆盖全球政商界", 
+        env: "紧凑的都市校园，典型的“社会精英预备役”氛围，职场导向极强", 
+        dist: "Houghton Street (核心单校区)", 
+        rent: "£350 - £550/周", 
+        traffic: "Holborn / Temple 地铁站步行 5 分钟",
+        employ: "90% (在投行、咨询、政府机构中拥有无可比拟的招聘优势)", 
+        intl: "约 70% (国际生比例全英最高，极其全球化)" 
+    },
+    { 
+        name: "华威大学 (Warwick)", 
+        city: "考文垂/沃里克", 
+        coords: [52.3793, -1.5615], 
+        qsRank: 74, 
+        group: "罗素集团", 
+        strength: "数学、WBS 商学院、制造工程 (WMG)、经济学", 
+        economy: "毗邻英国传统汽车工业带 (捷豹路虎)，与工业界联系极其紧密", 
+        env: "现代化的封闭式校园，生活设施齐全，安全且适合潜心学习", 
+        dist: "Main Campus (核心); Gibbet Hill (医学); Westwood", 
+        rent: "£150 - £250/周", 
+        traffic: "依赖校巴至 Coventry 火车站或 Leamington Spa",
+        employ: "84% (深受顶级跨国咨询公司与金融机构青睐)", 
+        intl: "约 38% (商学院国际化程度极高)" 
+    },
+    { 
+        name: "伯明翰大学 (Birmingham)", 
+        city: "伯明翰", 
+        coords: [52.4508, -1.9305], 
+        qsRank: 76, 
+        group: "罗素集团", 
+        strength: "物理与天文、生命科学、体育学、化学工程", 
+        economy: "英国第二大城市中心，制造业转型高科技服务的枢纽，实习机会多", 
+        env: "红砖大学代表，拥有全英唯一有火车站的校园，环境优美设施全", 
+        dist: "Edgbaston (核心校区); Selly Oak (人文/教育)", 
+        rent: "£160 - £260/周", 
+        traffic: "校内 University 车站直达市中心 (10分钟)",
+        employ: "81% (在工程、医疗与商业领域拥有强大的雇主网络)", 
+        intl: "约 35% (多元化程度稳健提升)" 
+    },
+    { 
+        name: "格拉斯哥大学 (Glasgow)", 
+        city: "格拉斯哥 (West End)", 
+        coords: [55.8721, -4.2882], 
+        qsRank: 79, 
+        group: "罗素集团", 
+        strength: "医学、法律、牙医、兽医、英语文学", 
+        economy: "苏格兰最大港口与商业重镇，海洋工程与商业服务业发达", 
+        env: "如霍格沃茨般的哥特式主楼，位于文艺气息浓郁的西区，底蕴深厚", 
+        dist: "Gilmorehill (主校区); Garscube (兽医)", 
+        rent: "£170 - £290/周", 
+        traffic: "步行至 Hillhead 地铁站极其方便",
+        employ: "80% (在法律、教育与医疗系统拥有极高的行业认可度)", 
+        intl: "约 38% (苏格兰最受国际生欢迎的学府之一)" 
+    },
+    { 
+        name: "利兹大学 (Leeds)", 
+        city: "利兹", 
+        coords: [53.8067, -1.5550], 
+        qsRank: 86, 
+        group: "罗素集团", 
+        strength: "传媒 (全英领先)、商科、食品科学、地球科学", 
+        economy: "伦敦外最大的法律与金融服务中心，就业市场非常活跃", 
+        env: "紧凑型单一校园，设施现代化，生活成本与质量平衡得极好", 
+        dist: "Leeds City Centre (单一核心校区)", 
+        rent: "£155 - £265/周", 
+        traffic: "步行即可覆盖绝大部分教学区与学生公寓",
+        employ: "82% (在传媒与金融服务行业具备极强的校友影响力)", 
+        intl: "约 33% (中国学生比例适中，校园非常多元)" 
+    },
+    { 
+        name: "南安普顿大学 (Southampton)", 
+        city: "南安普顿 (Highfield)", 
+        coords: [50.9346, -1.3960], 
+        qsRank: 87, 
+        group: "罗素集团", 
+        strength: "电子工程 (ECS)、海洋科学、光电子学、土木工程", 
+        economy: "全英最大客运港，英国国家海洋地理中心所在地，科研贸易发达", 
+        env: "典型的绿意森林校园，环境清幽避世，是专心科研的理想之地", 
+        dist: "Highfield (主校区); Boldrewood (创新工程); NOC (海洋中心)", 
+        rent: "£145 - £235/周", 
+        traffic: "Unilink 专属校巴连接所有校区与机场火车站",
+        employ: "80% (工程类毕业生在跨国科技巨头及科研院所认可度极高)", 
+        intl: "约 33% (在理工科领域拥有极高的国际化程度)" 
+    },
+    { 
+        name: "谢菲尔德大学 (Sheffield)", 
+        city: "谢菲尔德", 
+        coords: [53.3814, -1.4883], 
+        qsRank: 92, 
+        group: "罗素集团", 
+        strength: "工程学 (尤其是先进制造)、建筑学、新闻学", 
+        economy: "曾经的“钢铁之城”已转型为精密制造与研发中心 (波音/罗罗合作伙伴)", 
+        env: "紧邻峰区国家公园，拥有极佳的学生联盟设施，城市人情味浓郁", 
+        dist: "Western Bank (主校区集群)", 
+        rent: "£140 - £240/周", 
+        traffic: "发达的有轨电车 (Tram) 穿过校园直达市中心",
+        employ: "79% (在制造、工程与新闻领域有着极高的行业口碑)", 
+        intl: "约 30% (以友好的学术氛围著称)" 
+    },
+    { 
+        name: "杜伦大学 (Durham)", 
+        city: "杜伦", 
+        coords: [54.7753, -1.5849], 
+        qsRank: 94, 
+        group: "罗素集团", 
+        strength: "神学、地理学、考古学、古典学、法律", 
+        economy: "宁静古城，以教育与旅游业为支柱，消费水平适中", 
+        env: "极具贵族气质的学院制大学，与杜伦大教堂/城堡共生，氛围庄严", 
+        dist: "City Campus (杜伦市中心各学院集群)", 
+        rent: "£165 - £280/周", 
+        traffic: "城市极小，绝大部分时间依靠步行",
+        employ: "83% (毕业生在伦敦顶级金融机构与政法界拥有极强的声誉)", 
+        intl: "约 28% (精英化程度高，传统英式教育体验)" 
+    },
+    { 
+        name: "诺丁汉大学 (Nottingham)", 
+        city: "诺丁汉", 
+        coords: [52.9377, -1.1927], 
+        qsRank: 97, 
+        group: "罗素集团", 
+        strength: "药学 (全英前列)、农业与林业、能源工程", 
+        economy: "传统制造业转型基地，现代制药 (Boots 总部) 所在地", 
+        env: "公认的全英最美校园之一，坐拥巨大的湖泊与公园，极其宜居", 
+        dist: "University Park (主校区); Jubilee (创新校区); Sutton Bonington", 
+        rent: "£150 - £250/周", 
+        traffic: "校内直通电车 (Tram) 直达火车站与市中心",
+        employ: "80% (在生物制药、制造工程领域具有深厚的行业积淀)", 
+        intl: "约 31% (国际校友网络极其广泛)" 
+    },
+     { 
+        name: "伦敦玛丽女王大学 (QMUL)", 
+        city: "伦敦 (Mile End)", 
+        coords: [51.5241, -0.0404], 
+        qsRank: 120, 
+        group: "罗素大学集团", 
+        strength: "法学(知识产权法全英领先)、医学、戏剧、材料科学", 
+        economy: "位于伦敦东区，毗邻 Canary Wharf 新金融中心，地理位置极其便利金融实习", 
+        env: "伦敦罕见的单一综合性大型校园，物价相对伦敦中心区更为亲民", 
+        dist: "Mile End (主校区); Whitechapel (医学与牙医学院); Charterhouse Square (心脏研究所)", 
+        rent: "£280 - £450/周", 
+        traffic: "Mile End 地铁站 (Central/District/H&C 三线枢纽，交通极快)",
+        employ: "80% (法学院与伦敦律所联系极其紧密，毕业生成为伦敦法律界重要力量)", 
+        intl: "约 50% (全英背景最多元化的大学之一)" 
+    }
+
+];
+    
+
+    let selectedUnis = [];
+    const map = L.map('map').setView([54.5, -2.5], 6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+    let markerLayer = L.markerClusterGroup().addTo(map);
+
+    function getRentValue(rentStr) {
+        const numbers = rentStr.match(/\d+/g);
+        return numbers ? Math.max(...numbers.map(Number)) : 0;
+    }
+
+    function createPopupHtml(u) {
+        return `
+            <div class="u-popup">
+                <div class="u-title">${u.name} <span class="tag-qs">QS #${u.qsRank}</span></div>
+                <div class="u-row"><span class="label">🏢 校区：</span>${u.dist}</div>
+                <div class="u-row"><span class="label">🎯 优势：</span>${u.strength}</div>
+                <hr>
+                <div class="u-row" style="color:#d35400;"><span class="label">💰 租金：</span>${u.rent}</div>
+                <div class="u-row"><span class="label">🌳 环境：</span>${u.env}</div>
+            </div>
+        `;
+    }
+
+    function init() {
+        const list = document.getElementById('university-list');
+        universityData.sort((a,b) => a.qsRank - b.qsRank).forEach(u => {
+            const div = document.createElement('div');
+            div.className = 'uni-item';
+            div.innerHTML = `<strong>#${u.qsRank}</strong> ${u.name}`;
+            div.onclick = () => toggleUni(u, div);
+            list.appendChild(div);
+        });
+        updateMap();
+    }
+
+    function toggleUni(u, el) {
+        const idx = selectedUnis.indexOf(u.name);
+        if(idx > -1) {
+            selectedUnis.splice(idx, 1);
+            el.classList.remove('selected');
+        } else {
+            if(selectedUnis.length >= 2) {
+                alert("对比功能仅支持两所学校，请取消一个后再选择。");
+                return;
+            }
+            selectedUnis.push(u.name);
+            el.classList.add('selected');
+        }
+        updateMap();
+        renderComparison();
+    }
+
+    function updateMap() {
+        markerLayer.clearLayers();
+        const displayData = selectedUnis.length > 0 
+            ? universityData.filter(u => selectedUnis.includes(u.name))
+            : universityData;
+
+        displayData.forEach(u => {
+            const m = L.circleMarker(u.coords, {
+                radius: 8, fillColor: '#c8102e', color: '#fff', weight: 2, fillOpacity: 0.9
+            });
+            m.bindPopup(createPopupHtml(u));
+            markerLayer.addLayer(m);
+        });
+
+        if(selectedUnis.length > 0) {
+            const bounds = markerLayer.getBounds();
+            if (bounds.isValid()) map.flyToBounds(bounds, {padding:[100,100], maxZoom: 10});
+        } else {
+            map.setView([54.5, -2.5], 6);
+        }
+    }
+
+    function renderComparison() {
+        const grid = document.getElementById('comp-grid');
+        if (selectedUnis.length < 2) {
+            grid.innerHTML = `<div class="placeholder">已勾选 ${selectedUnis.length} 所，还需选择 ${2-selectedUnis.length} 所即可开启六大维度对比</div>`;
+            return;
+        }
+
+        const a = universityData.find(u => u.name === selectedUnis[0]);
+        const b = universityData.find(u => u.name === selectedUnis[1]);
+
+        const valA = getRentValue(a.rent), valB = getRentValue(b.rent);
+        const percentA = Math.min((valA / 600) * 100, 100);
+        const percentB = Math.min((valB / 600) * 100, 100);
+
+        let tableHtml = `
+            <table class="comp-table">
+                <tr><th class="dim-label">对比维度</th><th class="uni-name-header">${a.name}</th><th class="uni-name-header">${b.name}</th></tr>
+                <tr><td class="dim-label">📊 QS 排名</td><td><span class="val-highlight">#${a.qsRank}</span></td><td><span class="val-highlight">#${b.qsRank}</span></td></tr>
+                <tr><td class="dim-label">📍 地理/交通</td><td><b>${a.city}</b><br><small>${a.traffic}</small></td><td><b>${b.city}</b><br><small>${b.traffic}</small></td></tr>
+                <tr><td class="dim-label">🎯 优势专业</td><td>${a.strength}</td><td>${b.strength}</td></tr>
+                <tr><td class="dim-label">🎓 就业/国际化</td><td>就业率：${a.employ}<br>占比：${a.intl}</td><td>就业率：${b.employ}<br>占比：${b.intl}</td></tr>
+                <tr>
+                    <td class="dim-label">💰 租金压力</td>
+                    <td>
+                        <b>${a.rent}</b>
+                        <div class="rent-bar-container"><div class="rent-bar-fill" style="width:${percentA}%"></div></div>
+                        <div class="rent-label"><span>经济</span><span>压力大</span></div>
+                    </td>
+                    <td>
+                        <b>${b.rent}</b>
+                        <div class="rent-bar-container"><div class="rent-bar-fill" style="width:${percentB}%"></div></div>
+                        <div class="rent-label"><span>经济</span><span>压力大</span></div>
+                    </td>
+                </tr>
+                <tr><td class="dim-label">🌳 校园/经济</td><td><b>环境：</b>${a.env}<br><b>特色：</b>${a.economy}</td><td><b>环境：</b>${b.env}<br><b>特色：</b>${b.economy}</td></tr>
+            </table>
+            <div class="data-source">* 数据统计来源于 2026 年 QS 世界大学排名及各校 2025/26 招生简报。租金压力以 £600/周为上限参照。</div>
+        `;
+        grid.innerHTML = tableHtml;
+    }
+
+    function resetSelection() {
+        selectedUnis = [];
+        document.querySelectorAll('.uni-item').forEach(i => i.classList.remove('selected'));
+        updateMap();
+        renderComparison();
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>

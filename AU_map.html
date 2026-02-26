@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>澳洲八大名校 (Go8) 交互对比系统 - 专家咨询版</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+    <style>
+        :root { --primary: #003049; --accent: #f77f00; --gold: #fcbf49; --gray: #f8f9fa; --wechat: #07c160; }
+        body { background-color: #f0f2f5; margin: 0; font-family: 'Segoe UI', Arial, sans-serif; padding-bottom: 80px; }
+        
+        .main-container {
+            max-width: 1400px; margin: 20px auto; background: #fff;
+            padding: 20px; border-radius: 15px; display: flex; gap: 20px; height: 60vh;
+        }
+
+        #sidebar { width: 320px; display: flex; flex-direction: column; background: var(--gray); border-radius: 10px; padding: 10px; }
+        #university-list { flex: 1; overflow-y: auto; }
+        .uni-item { padding: 10px; margin-bottom: 5px; background: #fff; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; font-size: 13px; transition: 0.2s; }
+        .uni-item:hover { border-color: var(--accent); background: #fffbf5; }
+        .uni-item.selected { border-left: 5px solid var(--accent); background: #fffcf0; font-weight: bold; }
+
+        #map { flex: 1; border-radius: 10px; z-index: 1; }
+
+        .comparison-section {
+            max-width: 1400px; margin: 20px auto; background: #fff;
+            padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        .comp-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .comp-table th, .comp-table td { border: 1px solid #eee; padding: 12px; text-align: left; font-size: 14px; }
+        .dim-label { background: #f8f9fa; width: 140px; font-weight: bold; color: #666; }
+        .uni-name-header { background: var(--primary) !important; color: white !important; text-align: center; font-size: 16px; }
+        
+        /* 租金进度条 */
+        .rent-bar-container { background: #eee; border-radius: 10px; height: 10px; width: 100%; margin-top: 8px; overflow: hidden; }
+        .rent-bar-fill { height: 100%; background: linear-gradient(90deg, #fcbf49, #f77f00, #d62828); transition: width 0.6s ease-in-out; }
+
+        /* ✨ 悬浮咨询条 */
+        .sticky-consult-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(135deg, #003049 0%, #005073 100%);
+            color: white; padding: 15px 0; z-index: 9999;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
+            display: flex; justify-content: center; align-items: center; gap: 30px;
+        }
+        .wechat-tag { color: var(--gold); font-weight: bold; border: 1px dashed var(--gold); padding: 2px 8px; border-radius: 4px; }
+
+        /* 气泡样式优化 */
+        .u-popup { line-height: 1.6; font-size: 13px; min-width: 250px; }
+        .u-title { font-weight: bold; font-size: 15px; color: var(--primary); border-bottom: 2px solid var(--accent); margin-bottom: 8px; }
+        .label { font-weight: bold; color: #555; }
+        .tag-qs { background: #fcbf49; color: #333; padding: 1px 5px; border-radius: 3px; font-size: 11px; float: right; font-weight: bold; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 8px 0; }
+        .placeholder { text-align: center; padding: 40px; color: #999; border: 2px dashed #eee; border-radius: 10px; }
+        .data-source { font-size: 12px; color: #999; text-align: center; margin-top: 20px; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div style="text-align: center; padding: 20px 0;">
+    <h1 style="color: var(--primary); margin: 0;">🇦🇺 澳洲八大名校 (Go8) 交互对比地图</h1>
+    <p style="color: #666;">深度解析 2026 QS 排名与 NPL 配额政策 | <strong>研究生混申指导</strong></p>
+</div>
+
+<div class="sticky-consult-bar">
+    <span>🚀 研究生留学全球混申免费咨询</span>
+    <span>添加微信：<span class="wechat-tag">wmcx123456</span></span>
+</div>
+
+<div class="main-container">
+    <div id="sidebar">
+        <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <strong>Go8 院校列表</strong>
+            <button onclick="resetSelection()" style="cursor:pointer; padding: 2px 8px;">重置</button>
+        </div>
+        <div id="university-list"></div>
+    </div>
+    <div id="map"></div>
+</div>
+
+<div class="comparison-section">
+    <div id="comp-grid">
+        <div class="placeholder">请在上方列表勾选 2 所学校开启深度对比</div>
+    </div>
+</div>
+
+<script>
+    const universityData = [
+        { 
+            name: "墨尔本大学 (UniMelb)", city: "墨尔本", coords: [-37.7964, 144.9612], qsRank: 19, 
+            quota: "🔴 极度紧张 (NPL配额削减显著)", migration: "标准积分 (悉墨地区竞争大)",
+            rent: "A$350 - A$550/周", strength: "法律、医学、商科", dist: "Parkville; Southbank",
+            economy: "维州生物医药枢纽", traffic: "Stop 1 电车站", employ: "92%", intl: "48%", env: "学术密集，都市边缘"
+        },
+        { 
+            name: "新南威尔士大学 (UNSW)", city: "悉尼", coords: [-33.9174, 151.2313], qsRank: 20, 
+            quota: "🔴 极度紧张 (工程/IT配额秒空)", migration: "标准积分 (需 189/190 高分竞争)",
+            rent: "A$450 - A$650/周", strength: "工程、计算机、太阳能", dist: "Kensington; Paddington",
+            economy: "悉尼科技走廊核心", traffic: "轻轨 L2/L3 直达", employ: "94%", intl: "45%", env: "职场导向，节奏极快"
+        },
+        { 
+            name: "悉尼大学 (USYD)", city: "悉尼", coords: [-33.8886, 151.1873], qsRank: 25, 
+            quota: "🔴 极度紧张 (发Offer节奏变慢)", migration: "标准积分 (会计/商科难度高)",
+            rent: "A$450 - A$650/周", strength: "医学、法律、建筑、政治", dist: "Camperdown; Westmead",
+            economy: "悉尼 CBD 金融传媒圈", traffic: "Redfern 火车站", employ: "91%", intl: "44%", env: "传统贵族气质，砂岩地标"
+        },
+        { 
+            name: "澳洲国立大学 (ANU)", city: "堪培拉", coords: [-35.2830, 149.1211], qsRank: 32, 
+            quota: "🟡 中等紧张 (配额相对宽裕)", migration: "✅ 偏远地区加分 (ACT州担友好)",
+            rent: "A$280 - A$420/周", strength: "国关、物理、天文", dist: "Acton; Mt Stromlo",
+            economy: "联邦政府及智库中心", traffic: "堪培拉轻轨系统", employ: "88%", intl: "38%", env: "宁静森林校园，学术密度高"
+        },
+        { 
+            name: "莫纳什大学 (Monash)", city: "墨尔本", coords: [-37.9150, 145.1300], qsRank: 36, 
+            quota: "🔴 极度紧张 (配额压力重)", migration: "标准积分 (护理/教育仍利好)",
+            rent: "A$260 - A$450/周", strength: "药剂学、IT、护理、教育", dist: "Clayton; Caulfield",
+            economy: "墨尔本东南产业带", traffic: "Clayton 枢纽校车", employ: "86%", intl: "45%", env: "现代创新，全澳规模最大"
+        },
+        { 
+            name: "昆士兰大学 (UQ)", city: "布里斯班", coords: [-27.4975, 153.0137], qsRank: 42, 
+            quota: "🟠 高度紧张 (布村热度持续上升)", migration: "标准积分 (已非偏远地区)",
+            rent: "A$250 - A$400/周", strength: "生物、矿业、环境科学", dist: "St Lucia; Herston",
+            economy: "2032 奥运经济增长极", traffic: "CityCat 渡轮总站", employ: "85%", intl: "32%", env: "蓝花楹美景，科研生活平衡"
+        },
+        { 
+            name: "西澳大学 (UWA)", city: "珀斯", coords: [-31.9801, 115.8182], qsRank: 77, 
+            quota: "🟢 相对宽松 (政府鼓励流向西澳)", migration: "🔥 偏远地区加分 (西澳州担稳健)",
+            rent: "A$240 - A$380/周", strength: "矿业、海洋、能源工程", dist: "Crawley; Albany",
+            economy: "世界矿业巨头总部", traffic: "珀斯公交系统", employ: "82%", intl: "25%", env: "地中海气候，生活节奏舒缓"
+        },
+        { 
+            name: "阿德莱德大学 (Adelaide Uni)", city: "阿德莱德", coords: [-34.9205, 138.6052], qsRank: 82, 
+            quota: "🟢 相对宽松 (合并政策支持)", migration: "🔥 偏远地区加分 (南澳州担极佳)",
+            rent: "A$220 - A$360/周", strength: "葡萄酒、AI、农学", dist: "North Terrace; Waite",
+            economy: "防御、航天及生命科学枢纽", traffic: "市中心免费电车", employ: "81%", intl: "30%", env: "合并后新气象，治安极佳"
+        }
+    ];
+
+    let selectedUnis = [];
+    const map = L.map('map').setView([-25.27, 133.77], 4);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+    let markerLayer = L.markerClusterGroup().addTo(map);
+
+    function createPopupHtml(u) {
+        return `
+            <div class="u-popup">
+                <div class="u-title">${u.name} <span class="tag-qs">QS #${u.qsRank}</span></div>
+                <div class="u-row"><span class="label">🏢 校区：</span>${u.dist}</div>
+                <div class="u-row"><span class="label">🎯 优势：</span>${u.strength}</div>
+                <hr>
+                <div class="u-row" style="color:#d62828;"><span class="label">📅 配额：</span>${u.quota}</div>
+                <div class="u-row" style="color:#d35400;"><span class="label">💰 租金：</span>${u.rent}</div>
+                <div class="u-row"><span class="label">🌳 环境：</span>${u.env}</div>
+            </div>
+        `;
+    }
+
+    function init() {
+        const list = document.getElementById('university-list');
+        universityData.sort((a,b) => a.qsRank - b.qsRank).forEach(u => {
+            const div = document.createElement('div');
+            div.className = 'uni-item';
+            div.innerHTML = `<strong>#${u.qsRank}</strong> ${u.name}`;
+            div.onclick = () => toggleUni(u, div);
+            list.appendChild(div);
+        });
+        updateMap();
+    }
+
+    function toggleUni(u, el) {
+        const idx = selectedUnis.indexOf(u.name);
+        if(idx > -1) { selectedUnis.splice(idx, 1); el.classList.remove('selected'); }
+        else {
+            if(selectedUnis.length >= 2) return alert("对比功能仅支持两所学校。");
+            selectedUnis.push(u.name); el.classList.add('selected');
+        }
+        updateMap(); renderComparison();
+    }
+
+    function updateMap() {
+        markerLayer.clearLayers();
+        const displayData = selectedUnis.length > 0 ? universityData.filter(u => selectedUnis.includes(u.name)) : universityData;
+        displayData.forEach(u => {
+            const m = L.circleMarker(u.coords, { radius: 10, fillColor: '#d62828', color: '#fff', weight: 2, fillOpacity: 0.9 });
+            // ✨ 关键修复点：使用 createPopupHtml 函数
+            m.bindPopup(createPopupHtml(u));
+            markerLayer.addLayer(m);
+        });
+        if(selectedUnis.length > 0) {
+            const bounds = markerLayer.getBounds();
+            if (bounds.isValid()) map.flyToBounds(bounds, {padding:[100,100], maxZoom: 12});
+        } else {
+            map.setView([-25.27, 133.77], 4);
+        }
+    }
+
+    function renderComparison() {
+        const grid = document.getElementById('comp-grid');
+        if (selectedUnis.length < 2) {
+            grid.innerHTML = `<div class="placeholder">已勾选 ${selectedUnis.length} 所，还需选择 ${2-selectedUnis.length} 所开启 2026 深度对比</div>`;
+            return;
+        }
+        const a = universityData.find(u => u.name === selectedUnis[0]), b = universityData.find(u => u.name === selectedUnis[1]);
+        const valA = parseInt(a.rent.match(/\d+/g)[1]), valB = parseInt(b.rent.match(/\d+/g)[1]);
+        
+        grid.innerHTML = `
+            <table class="comp-table">
+                <tr><th class="dim-label">对比维度</th><th class="uni-name-header">${a.name}</th><th class="uni-name-header">${b.name}</th></tr>
+                <tr><td class="dim-label">📅 2026 配额 (NPL)</td><td style="color:#d62828"><b>${a.quota}</b></td><td style="color:#d62828"><b>${b.quota}</b></td></tr>
+                <tr><td class="dim-label">🇦🇺 移民/PR 潜力</td><td style="background:#f9fff9">${a.migration}</td><td style="background:#f9fff9">${b.migration}</td></tr>
+                <tr><td class="dim-label">💰 租金压力指数</td>
+                    <td><b>${a.rent}</b><div class="rent-bar-container"><div class="rent-bar-fill" style="width:${(valA/700)*100}%"></div></div></td>
+                    <td><b>${b.rent}</b><div class="rent-bar-container"><div class="rent-bar-fill" style="width:${(valB/700)*100}%"></div></div></td>
+                </tr>
+                <tr><td class="dim-label">🎯 强势专业</td><td>${a.strength}</td><td>${b.strength}</td></tr>
+                <tr><td class="dim-label">📍 校区分布</td><td>${a.dist}</td><td>${b.dist}</td></tr>
+                <tr><td class="dim-label">🏗️ 产业关联</td><td>${a.economy}</td><td>${b.economy}</td></tr>
+            </table>
+            <div class="data-source">
+                * 数据参考 2026 QS 排名及澳洲 NPL 配额政策。想要更详细的申请规划？<br>
+                <strong>🚀 研究生留学全球混申免费咨询（添加微信：wmcx123456） </strong>
+            </div>
+        `;
+    }
+
+    window.onload = init;
+    function resetSelection() { selectedUnis = []; document.querySelectorAll('.uni-item').forEach(i => i.classList.remove('selected')); updateMap(); renderComparison(); }
+</script>
+</body>
+</html>
